@@ -20,7 +20,11 @@
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;
     overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-font-smoothing:antialiased;
-    transition:background-color .45s ease,color .3s ease;
+    /* NB: never transition background-color here — Chrome fails to repaint a
+       var()-driven background while its transition is pending, so the field
+       froze on the first section while the digits (own transition) updated.
+       The crossfade is done in JS with a dedicated layer instead. */
+    transition:color .3s ease;
   }
   body[data-theme="light"]{
     --field:#F2F2F7; --field-fg:#000000; --fg:#000000; --dim:#8E8E93;
@@ -29,7 +33,11 @@
     --c-indigo:#5856D6; --c-green:#34C759; --c-blue:#007AFF;
     --c-orange:#FF9500; --c-red:#FF3B30;
   }
-  body.solid-field{color:var(--field-fg)}
+  /* dedicated backdrop layer: a real element whose own background we can
+     animate. Setting it on <body> hit the Chrome repaint bug described above. */
+  #field{position:fixed;inset:0;z-index:0;pointer-events:none;background-color:#000}
+  body{background-color:transparent!important}
+  body[data-theme="light"] #field{background-color:#F2F2F7}
 
   /* ===== stage ===== */
   #stage{display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -142,6 +150,7 @@
 </head>
 <body data-state="idle" data-theme="dark" data-sound="locked">
 <div id="flash"></div>
+<div id="field" aria-hidden="true"></div>
 
 <div id="stage">
   <div id="phaseZh">准备</div>
@@ -288,7 +297,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {
     body: document.body, zh: $("phaseZh"), en: $("phaseEn"), clock: $("clock"),
-    fill: $("fill"), next: $("next"), step: $("step")
+    fill: $("fill"), next: $("next"), step: $("step"), field: $("field")
   };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, m =>
     ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]));
@@ -478,10 +487,26 @@
     const key = field.join(",") + "|" + fg + "|" + mode + "|" + colourKey;
     if (!force && key === lastField) return;
     lastField = key;
-    const st = el.body.style;
-    st.setProperty("--field", `rgb(${field[0]}, ${field[1]}, ${field[2]})`);
-    st.setProperty("--field-fg", fg);
+    const rgb = `rgb(${field[0]}, ${field[1]}, ${field[2]})`;
+    el.body.style.setProperty("--field", rgb);
+    el.body.style.setProperty("--field-fg", fg);
     el.body.classList.toggle("solid-field", mode === "solid");
+    paintLayer(rgb);
+  }
+
+  /* Paint the backdrop layer.
+     NEVER animate or transition this colour. Chrome stops advancing CSS
+     transitions and WAAPI animations in a background tab, and a frozen
+     animation keeps holding the OLD colour — that is exactly the reported
+     bug: the section title advanced while the backdrop stayed on section 1.
+     A plain inline paint applies even in a hidden tab (verified), and an
+     instant colour swap is the better cue for a competition anyway. */
+  let lastLayer = "";
+  function paintLayer(rgb) {
+    const layer = el.field;
+    if (!layer || rgb === lastLayer) return;
+    lastLayer = rgb;
+    layer.style.backgroundColor = rgb;
   }
 
   /* ---------- render ---------- */
@@ -537,6 +562,7 @@
     buildTimeline();
     bells.forEach(b => b.fired = false);
     lastField = "";
+    lastLayer = "";
     setBtn("idle");
     el.body.dataset.state = "idle";
     render();
@@ -551,11 +577,12 @@
     el.next.textContent = "请下一位选手准备 · Next speaker, please";
     el.step.textContent = "";
     const light = effTheme() === "light";
-    const st = el.body.style;
-    st.setProperty("--field", light ? "rgb(214,214,214)" : "rgb(38,38,40)");
-    st.setProperty("--field-fg", light ? "#000000" : "#FFFFFF");
+    const rgb = light ? "rgb(214,214,214)" : "rgb(38,38,40)";
+    el.body.style.setProperty("--field", rgb);
+    el.body.style.setProperty("--field-fg", light ? "#000000" : "#FFFFFF");
     el.body.classList.add("solid-field");
     lastField = "done";
+    paintLayer(rgb);
     setBtn("done");
   }
 
