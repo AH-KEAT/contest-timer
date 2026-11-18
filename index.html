@@ -47,7 +47,8 @@
   #clock{font-size:clamp(72px,23vh,310px);font-weight:700;line-height:.9;letter-spacing:-.025em;
          font-variant-numeric:tabular-nums;transition:color .3s}
   #bar{position:relative;width:min(78vw,1100px);height:clamp(4px,.8vh,9px);border-radius:99px;
-       background:var(--track);overflow:visible;margin-top:clamp(10px,1.8vh,20px)}
+       background:var(--track);overflow:visible;margin-top:clamp(14px,2.4vh,26px);
+       margin-bottom:clamp(16px,2.6vh,30px)}
   #fill{height:100%;width:100%;border-radius:99px;background:var(--fg);transition:background .3s}
   /* bell markers: one tick per scheduled bell, positioned by its second */
   #markers{position:absolute;inset:0;pointer-events:none}
@@ -55,6 +56,12 @@
         height:clamp(8px,1.5vh,15px);border-radius:2px;
         background:var(--field-fg);opacity:.62;transform:translateX(-50%);
         box-shadow:0 0 0 1px rgba(0,0,0,.28)}
+  .markTime{position:absolute;top:calc(100% + clamp(10px,1.7vh,18px));transform:translateX(-50%);
+        font-size:clamp(9px,1.35vh,15px);letter-spacing:.02em;white-space:nowrap;
+        color:var(--field-fg);opacity:.6;font-variant-numeric:tabular-nums}
+  .markTime.at-start{transform:none}
+  .markTime.at-end{transform:translateX(-100%)}
+  .markTime[data-hit="1"]{opacity:.35}
   body[data-theme="light"] .mark{box-shadow:0 0 0 1px rgba(255,255,255,.5)}
   .mark[data-rings="2"]{opacity:.72;width:4px}
   .mark[data-rings="3"]{opacity:.92;width:5px}
@@ -239,10 +246,10 @@
         </div>
       </div>
       <div class="row">
-        <div class="lbl"><b>倒数显示</b><em>What the big digits count</em></div>
+        <div class="lbl"><b>倒数显示</b><em>本段=每段各自倒数 / 合并全场=所有分段合成一个总倒数<br>section = per section / merged = one total run</em></div>
         <div class="seg" id="segDisplay">
           <button data-display="section">本段</button>
-          <button data-display="session">全场</button>
+          <button data-display="session">合并全场</button>
         </div>
       </div>
       <div class="row">
@@ -311,14 +318,19 @@
   const NO_OVERRIDES = { indigo:null, green:null, blue:null, orange:null, red:null };
 
   const DEFAULT_SEGMENTS = () => ([
-    { t:"演讲", s:"PRESENTATION", min:15, color:"green",
+    { t:"演讲", s:"PRESENTATION", min:15, sec:0, color:"green",
       bells:[ { mode:"after", secs:300, rings:1 },
               { mode:"after", secs:600, rings:1 },
               { mode:"end",   secs:0,   rings:1 } ] },
-    { t:"问答 / 加时", s:"Q & A", min:5, color:"blue",
+    { t:"问答 / 加时", s:"Q & A", min:5, sec:0, color:"blue",
       bells:[ { mode:"end", secs:0, rings:2 } ] }
   ]);
   const newBell = () => ({ mode:"end", secs:0, rings:1 });
+  // A section's length is exact seconds: min*60 + sec. `min` stays for
+  // compatibility with older saves, `sec` adds the precision a contest needs
+  // (a 4:30 round is not expressible as whole minutes).
+  const durSecs = (sg) =>
+    Math.max(1, Math.round((Number(sg.min) || 0) * 60) + (Number(sg.sec) || 0));
   // migration: v3 stored one bell per section; v4 stores a list
   const toBellList = (sg) => {
     if (Array.isArray(sg.bells) && sg.bells.length) {
@@ -344,7 +356,13 @@
     S.overrides = Object.assign(structuredClone(NO_OVERRIDES), S.overrides || {});
     if (!Array.isArray(S.segments) || !S.segments.length) S.segments = DEFAULT_SEGMENTS();
     S.segments = S.segments.map(sg => {
-      const out = Object.assign({ t:"新分段", s:"", min:5, color:"blue" }, sg);
+      const out = Object.assign({ t:"新分段", s:"", min:0, sec:0, color:"blue" }, sg);
+      // legacy saves stored a decimal `min` (0.5 = 30 s) — fold the fraction into sec
+      const m = Math.floor(Number(out.min) || 0);
+      const frac = Math.round(((Number(out.min) || 0) - m) * 60);
+      out.min = m;
+      out.sec = Math.max(0, Math.min(59, (Number(out.sec) || 0) + frac));
+      if (out.min === 0 && out.sec === 0) out.min = 5;
       out.bells = toBellList(sg);
       delete out.bell;
       return out;
@@ -492,7 +510,7 @@
       cursor += S.prep.secs;
     }
     S.segments.forEach((sg, i) => {
-      const dur = Math.max(1, Math.round((Number(sg.min) || 0) * 60));
+      const dur = durSecs(sg);
       timeline.push({ kind:"seg", idx:i, start:cursor, dur, title:sg.t || ("分段 " + (i+1)),
                       sub:sg.s || "", color:sg.color || "blue" });
       cursor += dur;
@@ -599,6 +617,23 @@
      bell rings. In "section" display the bar spans one section, so only bells
      that belong to that section are drawn, along with the section boundaries. */
   let lastMarkKey = "";
+
+  // Add the little time stamp under a tick, without letting two labels collide.
+  // `place` is the fractional position along the bar (0..1).
+  function attachLabel(box, stamp, place, fired) {
+    const lab = document.createElement("span");
+    lab.className = "markTime";
+    lab.textContent = stamp;
+    lab.dataset.hit = fired ? "1" : "0";
+    // clamp the text inside the bar: near the ends it aligns inward instead of
+    // centring on the tick, which would hang the label off the screen edge
+    if (place <= 0.04) lab.classList.add("at-start");
+    else if (place >= 0.96) lab.classList.add("at-end");
+    lab.style.left = (Math.min(1, Math.max(0, place)) * 100).toFixed(3) + "%";
+    box.appendChild(lab);
+    return lab;
+  }
+
   function paintMarkers(item) {
     const box = el.markers;
     if (!box) return;
@@ -621,8 +656,11 @@
         m.dataset.rings = b.rings;
         m.dataset.hit = b.fired ? "1" : "0";
         m.style.left = (Math.min(1, Math.max(0, rel)) * 100).toFixed(3) + "%";
-        m.title = mmss(b.at - sStart) + " ×" + b.rings;
+        const stamp = mmss(b.at - sStart);      // 10:00 for an end bell, 9:30 for before-30s
+        m.title = stamp + " ×" + b.rings;
+        m.dataset.place = rel.toFixed(4);
         box.appendChild(m);
+        attachLabel(box, stamp, rel, b.fired);
       }
     } else {
       // one section: marks for its own bells, plus a faint line at each boundary
@@ -635,9 +673,24 @@
         m.dataset.rings = b.rings;
         m.dataset.hit = b.fired ? "1" : "0";
         m.style.left = (rel * 100).toFixed(3) + "%";
-        m.title = mmss(b.at) + " ×" + b.rings;
+        const stamp = mmss(b.at - sessionStart());
+        m.title = stamp + " ×" + b.rings;
+        m.dataset.place = rel.toFixed(4);
         box.appendChild(m);
+        attachLabel(box, stamp, rel, b.fired);
       }
+    }
+
+    // Labels are text at a fixed size, so collision must be measured once the
+    // marks are laid out. Keep the first of any overlapping pair; its tick alone
+    // still marks the later bell.
+    const labs = [...box.querySelectorAll(".markTime")];
+    let prevRight = -Infinity;
+    for (const lab of labs) {
+      const r = lab.getBoundingClientRect();
+      if (r.width === 0) continue;                 // hidden tab: no layout, skip
+      if (r.left < prevRight + 4) { lab.style.display = "none"; continue; }
+      prevRight = r.right;
     }
   }
 
@@ -676,12 +729,33 @@
 
     const i = timeline.indexOf(item);
     const nxt = timeline[i + 1];
-    el.next.textContent = nxt
-      ? "接下来 NEXT · " + nxt.title + " " + (session ? mmss(nxt.dur) : mmss(nxt.dur))
-      : "";
-    el.step.textContent = item.kind === "seg"
-      ? "第 " + (item.idx + 1) + " / " + S.segments.length + " 段 · SECTION " + (item.idx + 1) + " OF " + S.segments.length
-      : "";
+
+    if (session) {
+      // MERGED RUN: the sections are one continuous session, so show what the
+      // section structure would only distract from — no "1 of 2", no "next section".
+      el.step.textContent = "";
+      // Inline the remaining section names so the timekeeper still knows where
+      // in the agenda the run currently is, without a per-section countdown.
+      // An agenda, not a countdown: each stamp is when that section ENDS
+      // measured from the session start, so it reads like a running order.
+      const agenda = S.segments
+        .map((sg, si) => {
+          const it = timeline.find(x => x.kind === "seg" && x.idx === si);
+          if (!it) return "";
+          const mark = si === item.idx ? "▸ " : "";
+          return mark + sg.t + " " + mmss(Math.max(0, it.start + it.dur - sessionStart()));
+        })
+        .filter(Boolean)
+        .join("   ·   ");
+      el.next.textContent = "议程 AGENDA · " + agenda;
+    } else {
+      el.next.textContent = nxt
+        ? "接下来 NEXT · " + nxt.title + " " + mmss(nxt.dur)
+        : "";
+      el.step.textContent = item.kind === "seg"
+        ? "第 " + (item.idx + 1) + " / " + S.segments.length + " 段 · SECTION " + (item.idx + 1) + " OF " + S.segments.length
+        : "";
+    }
 
     paintField(false, item, isPrep ? Math.ceil(remaining) : null);
     paintMarkers(item);
@@ -802,8 +876,10 @@
            <button class="del" data-del="${i}" title="删除 Delete">✕</button>
          </div>
          <div class="segTop" data-row="opts"${sg._warn ? ' style="outline:1px solid rgba(255,159,10,.55);outline-offset:2px;border-radius:8px"' : ""}>
-           <input type="number" data-i="${i}" data-f="min" min="0.1" max="180" step="0.5" value="${sg.min}" title="分钟 minutes">
+           <input type="number" data-i="${i}" data-f="min" min="0" max="180" step="1" value="${sg.min}" title="分钟 minutes">
            <span style="font-size:12px;color:var(--dim)">min</span>
+           <input type="number" data-i="${i}" data-f="sec" min="0" max="59" step="1" value="${sg.sec || 0}" title="秒 seconds">
+           <span style="font-size:12px;color:var(--dim)">s</span>
            <span class="swatchRow">${COLOURS.map(c =>
              `<i class="dot${sg.color === c ? " on" : ""}" data-color="${c}" data-i="${i}"
                  style="background:var(--c-${c})" title="${COLOUR_ZH[c]} ${c}"></i>`).join("")}</span>
@@ -816,7 +892,7 @@
                  <option value="before">结束前 before</option>
                  <option value="after">开始后 after</option>
                </select>
-               <input type="number" data-i="${i}" data-b="${bi}" data-f="secs" min="0" max="3600" step="5"
+               <input type="number" data-i="${i}" data-b="${bi}" data-f="secs" min="0" max="3600" step="1"
                       value="${b.secs}" title="秒 seconds">
                <span style="font-size:12px;color:var(--dim)">s</span>
                <select data-i="${i}" data-b="${bi}" data-f="rings" title="响几下 rings">
@@ -830,14 +906,6 @@
          </div>`;
       list.appendChild(card);
 
-      if (sg._warn) {
-        const tip = document.createElement("div");
-        tip.style.cssText = "font-size:11px;color:#FF9F0A;padding:2px 0 0 2px";
-        tip.textContent = sg._warn === "late"
-          ? "铃声超出总时长，不会响 · bell is past the end, it will not ring"
-          : "铃声落在开始之前，已提前到 0 秒 · bell is before the start, moved to 0 s";
-        card.appendChild(tip);
-      }
       sg.bells.forEach((b, bi) => {
         const row = card.querySelectorAll(".bellRow")[bi];
         if (!row) return;
@@ -849,8 +917,9 @@
         row.querySelector("[data-f=rings]").value = String(b.rings || 1);
       });
     });
-    const tot = S.segments.reduce((a, sg) => a + (Number(sg.min) || 0), 0);
-    $("totalTime").textContent = tot.toFixed(1).replace(/\.0$/, "") + " min 总计";
+    const tot = S.segments.reduce((a, sg) => a + durSecs(sg), 0);
+    $("totalTime").textContent = mmss(tot) + " 总计";
+    refreshWarnings();
   }
 
   $("segList").addEventListener("input", (e) => {
@@ -858,7 +927,8 @@
     if (!f || Number.isNaN(i) || !S.segments[i]) return;
     const sg = S.segments[i];
     if (f === "t") sg.t = t.value;
-    else if (f === "min") sg.min = Math.max(0.1, parseFloat(t.value) || 0.1);
+    else if (f === "min") sg.min = Math.max(0, Math.min(180, Math.round(parseFloat(t.value) || 0)));
+    else if (f === "sec") sg.sec = Math.max(0, Math.min(59, Math.round(parseFloat(t.value) || 0)));
     else if (!Number.isNaN(bi) && sg.bells[bi]) {
       const b = sg.bells[bi];
       if (f === "mode")  { b.mode = t.value; renderSegList(); }
@@ -866,8 +936,36 @@
       else if (f === "rings") b.rings = Math.min(3, Math.max(1, +t.value));
     }
     save(); buildTimeline(); lastMarkKey = "";
+    // refresh the 总计 readout in place — re-rendering the whole list on every
+    // keystroke would steal focus out of the input being typed into
+    const tot = S.segments.reduce((a, s) => a + durSecs(s), 0);
+    $("totalTime").textContent = mmss(tot) + " 总计";
+    refreshWarnings();
     if (!running) render();
   });
+
+  // Paint or clear the "this bell cannot ring" flag without rebuilding the list.
+  function refreshWarnings() {
+    document.querySelectorAll(".segCard").forEach((card, i) => {
+      const sg = S.segments[i];
+      if (!sg) return;
+      const opts = card.querySelector('[data-row="opts"]');
+      if (opts) opts.style.outline = sg._warn ? "1px solid rgba(255,159,10,.55)" : "";
+      let tip = card.querySelector(".warnTip");
+      if (sg._warn && !tip) {
+        tip = document.createElement("div");
+        tip.className = "warnTip";
+        tip.style.cssText = "font-size:11px;color:#FF9F0A;padding:2px 0 0 2px";
+        card.appendChild(tip);
+      }
+      if (tip) {
+        if (!sg._warn) tip.remove();
+        else tip.textContent = sg._warn === "late"
+          ? "铃声超出总时长，不会响 · bell is past the end, it will not ring"
+          : "铃声落在开始之前，已提前到 0 秒 · bell is before the start, moved to 0 s";
+      }
+    });
+  }
 
   $("segList").addEventListener("click", (e) => {
     const delB = e.target.closest("[data-delb]");
@@ -909,7 +1007,7 @@
 
   $("btnAddSeg").addEventListener("click", () => {
     const last = S.segments[S.segments.length - 1] || { color:"blue" };
-    S.segments.push({ t:"新分段 " + (S.segments.length + 1), s:"", min:5,
+    S.segments.push({ t:"新分段 " + (S.segments.length + 1), s:"", min:5, sec:0,
                       color: last.color, bells:[ newBell() ] });
     save(); buildTimeline(); renderSegList();
     const card = $("segList").lastElementChild;
@@ -1017,7 +1115,7 @@
     setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
     setSegments: (arr) => {
       S.segments = arr.map(sg => {
-        const out = Object.assign({ t:"", s:"", min:5, color:"blue" }, sg);
+        const out = Object.assign({ t:"", s:"", min:5, sec:0, color:"blue" }, sg);
         out.bells = toBellList(sg);
         delete out.bell;
         return out;
