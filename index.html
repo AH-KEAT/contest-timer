@@ -46,14 +46,37 @@
   #phaseEn{font-size:clamp(10px,1.4vh,18px);font-weight:500;letter-spacing:.24em;color:var(--field-fg);opacity:.72;text-transform:uppercase;transition:color .3s}
   #clock{font-size:clamp(72px,23vh,310px);font-weight:700;line-height:.9;letter-spacing:-.025em;
          font-variant-numeric:tabular-nums;transition:color .3s}
-  #bar{width:min(78vw,1100px);height:clamp(4px,.8vh,9px);border-radius:99px;background:var(--track);overflow:hidden}
+  #bar{position:relative;width:min(78vw,1100px);height:clamp(4px,.8vh,9px);border-radius:99px;
+       background:var(--track);overflow:visible;margin-top:clamp(10px,1.8vh,20px)}
   #fill{height:100%;width:100%;border-radius:99px;background:var(--fg);transition:background .3s}
+  /* bell markers: one tick per scheduled bell, positioned by its second */
+  #markers{position:absolute;inset:0;pointer-events:none}
+  .mark{position:absolute;bottom:calc(100% + clamp(4px,.7vh,8px));width:3px;
+        height:clamp(8px,1.5vh,15px);border-radius:2px;
+        background:var(--field-fg);opacity:.62;transform:translateX(-50%);
+        box-shadow:0 0 0 1px rgba(0,0,0,.28)}
+  body[data-theme="light"] .mark{box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+  .mark[data-rings="2"]{opacity:.72;width:4px}
+  .mark[data-rings="3"]{opacity:.92;width:5px}
+  .mark[data-hit="1"]{background:var(--field-fg);opacity:1}
+  body[data-theme="light"] .mark{background:#000;opacity:.45}
+  body[data-theme="light"] .mark[data-rings="2"]{opacity:.65}
+  body[data-theme="light"] .mark[data-rings="3"]{opacity:.85}
+  body[data-theme="light"] .mark[data-hit="1"]{opacity:1}
+  .markLine{position:absolute;top:50%;height:1px;border-radius:1px;
+            background:var(--field-fg);opacity:.22;transform:translateY(-50%)}
+  /* in session mode the digits get a small caption so nobody misreads them */
+  #totalCaption{display:none;font-size:clamp(9px,1.35vh,15px);letter-spacing:.18em;
+                color:var(--field-fg);opacity:.55;text-transform:uppercase}
+  body[data-display="session"] #totalCaption{display:block}
   #next{font-size:clamp(11px,1.6vh,21px);color:var(--field-fg);opacity:.62;letter-spacing:.04em;min-height:1.3em}
   #step{font-size:clamp(9px,1.3vh,16px);color:var(--field-fg);opacity:.45;letter-spacing:.14em}
 
   /* on a soft/solid field, ink follows the theme so digits stay readable */
   body #clock,body #phaseZh,body #phaseEn{color:var(--field-fg)}
   body #fill{background:var(--field-fg)}
+  body[data-theme="dark"] #bar{background:rgba(255,255,255,.20)}
+  body[data-theme="light"] #bar{background:rgba(0,0,0,.14)}
   body.solid-field #bar{background:rgba(255,255,255,.24)}
   body.solid-field[data-theme="light"] #bar{background:rgba(0,0,0,.16)}
 
@@ -143,6 +166,15 @@
   .addSeg{width:100%;background:transparent;border:1px dashed var(--border);color:var(--accent);
     font-size:13px;padding:10px;border-radius:10px;cursor:pointer;margin-bottom:13px}
   .swatchRow{display:flex;gap:5px;align-items:center;margin-left:auto}
+  .bellRows{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+  .bellRow{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .bellRow select{font-size:12.5px;padding:5px 7px}
+  .bellRow input[type=number]{font-size:12.5px;padding:5px 7px;width:50px}
+  .delBell{border:none;background:transparent;color:var(--dim);font-size:15px;padding:2px 6px;
+           border-radius:7px;cursor:pointer;line-height:1}
+  .delBell:hover{color:#FF453A;background:var(--track)}
+  .addBell{background:transparent;border:1px dashed var(--border);color:var(--accent);
+           font-size:12px;padding:5px 9px;border-radius:8px;cursor:pointer;margin-top:2px}
   .dot{width:19px;height:19px;border-radius:99px;border:2px solid transparent;cursor:pointer;padding:0;flex:none}
   .dot.on{border-color:var(--fg)}
   .totalRow{font-size:12px;color:var(--dim)}
@@ -156,7 +188,8 @@
   <div id="phaseZh">准备</div>
   <div id="phaseEn">GET READY</div>
   <div id="clock">3</div>
-  <div id="bar"><div id="fill"></div></div>
+  <div id="totalCaption"></div>
+  <div id="bar"><div id="fill"></div><div id="markers"></div></div>
   <div id="next"></div>
   <div id="step"></div>
 </div>
@@ -206,12 +239,23 @@
         </div>
       </div>
       <div class="row">
+        <div class="lbl"><b>倒数显示</b><em>What the big digits count</em></div>
+        <div class="seg" id="segDisplay">
+          <button data-display="section">本段</button>
+          <button data-display="session">全场</button>
+        </div>
+      </div>
+      <div class="row">
         <div class="lbl"><b>背景 Backdrop</b><em>段落颜色铺底 · fills the screen</em></div>
         <div class="seg" id="segBackdrop">
           <button data-bg="off">无</button>
           <button data-bg="soft" class="on">淡</button>
           <button data-bg="solid">满屏</button>
         </div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>铃声刻度</b><em>Bell marks on the time bar 时间条上标出每次铃声</em></div>
+        <label class="sw"><input id="swMarks" type="checkbox" checked><i></i></label>
       </div>
       <div class="row">
         <div class="lbl"><b>最后 30 秒滴答</b><em>Soft tick in final 30 s</em></div>
@@ -267,11 +311,23 @@
   const NO_OVERRIDES = { indigo:null, green:null, blue:null, orange:null, red:null };
 
   const DEFAULT_SEGMENTS = () => ([
-    { t:"演讲", s:"PRESENTATION", min:15, color:"green", bell:{ mode:"end", secs:0, rings:1 } },
-    { t:"问答 / 加时", s:"Q & A", min:5, color:"blue", bell:{ mode:"end", secs:0, rings:2 } }
+    { t:"演讲", s:"PRESENTATION", min:15, color:"green",
+      bells:[ { mode:"after", secs:300, rings:1 },
+              { mode:"after", secs:600, rings:1 },
+              { mode:"end",   secs:0,   rings:1 } ] },
+    { t:"问答 / 加时", s:"Q & A", min:5, color:"blue",
+      bells:[ { mode:"end", secs:0, rings:2 } ] }
   ]);
+  const newBell = () => ({ mode:"end", secs:0, rings:1 });
+  // migration: v3 stored one bell per section; v4 stores a list
+  const toBellList = (sg) => {
+    if (Array.isArray(sg.bells) && sg.bells.length) {
+      return sg.bells.map(b => Object.assign(newBell(), b || {}));
+    }
+    return [ Object.assign(newBell(), sg.bell || {}) ];
+  };
   const DEFAULTS = () => ({
-    theme:"auto", backdrop:"soft", tick:false, volume:0.7,
+    theme:"auto", backdrop:"soft", display:"section", marks:true, tick:false, volume:0.7,
     prep:{ on:true, secs:3, lights:true },
     segments: DEFAULT_SEGMENTS(),
     overrides: structuredClone(NO_OVERRIDES)
@@ -281,23 +337,27 @@
   let S;
   (function load() {
     let saved = null;
-    try { saved = JSON.parse(localStorage.getItem("contestTimer.v3") || "null"); } catch (e) {}
+    try { saved = JSON.parse(localStorage.getItem("contestTimer.v4") || "null"); } catch (e) {}
     const d = DEFAULTS();
     S = Object.assign(d, saved || {});
     S.prep = Object.assign(d.prep, S.prep || {});
     S.overrides = Object.assign(structuredClone(NO_OVERRIDES), S.overrides || {});
     if (!Array.isArray(S.segments) || !S.segments.length) S.segments = DEFAULT_SEGMENTS();
-    S.segments = S.segments.map(sg => Object.assign(
-      { t:"新分段", s:"", min:5, color:"blue", bell:{ mode:"end", secs:0, rings:1 } }, sg));
-    S.segments.forEach(sg => { sg.bell = Object.assign({ mode:"end", secs:0, rings:1 }, sg.bell || {}); });
+    S.segments = S.segments.map(sg => {
+      const out = Object.assign({ t:"新分段", s:"", min:5, color:"blue" }, sg);
+      out.bells = toBellList(sg);
+      delete out.bell;
+      return out;
+    });
   })();
-  const save = () => { try { localStorage.setItem("contestTimer.v3", JSON.stringify(S)); } catch (e) {} };
+  const save = () => { try { localStorage.setItem("contestTimer.v4", JSON.stringify(S)); } catch (e) {} };
 
   /* ---------- elements ---------- */
   const $ = (id) => document.getElementById(id);
   const el = {
     body: document.body, zh: $("phaseZh"), en: $("phaseEn"), clock: $("clock"),
-    fill: $("fill"), next: $("next"), step: $("step"), field: $("field")
+    fill: $("fill"), next: $("next"), step: $("step"), field: $("field"),
+    markers: $("markers"), caption: $("totalCaption")
   };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, m =>
     ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]));
@@ -439,24 +499,48 @@
     });
     totalSecs = cursor;
 
+    // Bells that already rang THIS RUN must stay rung. Without this, any edit
+    // mid-speech rebuilt the list with fired:false and the next tick re-rang
+    // every bell whose time had passed — a stray "ting" over the speaker.
+    const rungTimes = new Set(running ? bells.filter(b => b.fired).map(b => b.at) : []);
+
     S.segments.forEach((sg, i) => {
       const item = timeline.find(x => x.kind === "seg" && x.idx === i);
       if (!item) return;
-      const b = sg.bell || {};
-      let at;
-      if (b.mode === "before")      at = item.start + item.dur - (Number(b.secs) || 0);
-      else if (b.mode === "after")  at = item.start + (Number(b.secs) || 0);
-      else                          at = item.start + item.dur;
-      bells.push({ at: Math.max(0, at), rings: Math.min(3, Math.max(1, Number(b.rings) || 1)),
-                   fired:false, seg:i });
+      sg._warn = "";
+      for (const b of sg.bells) {
+        let at;
+        if (b.mode === "before")      at = item.start + item.dur - (Number(b.secs) || 0);
+        else if (b.mode === "after")  at = item.start + (Number(b.secs) || 0);
+        else                          at = item.start + item.dur;
+        const raw = at;
+        at = Math.max(0, Math.min(totalSecs, at));   // a bell can only ring inside the run
+        if (raw !== at && !sg._warn) sg._warn = (raw < 0 ? "early" : "late");
+        bells.push({ at, rings: Math.min(3, Math.max(1, Number(b.rings) || 1)),
+                     fired: rungTimes.has(at), seg:i });
+      }
     });
     bells.sort((a, b) => a.at - b.at);
+
+    // Anything already in the past when we (re)build mid-run is considered rung:
+    // the room has moved on, and a late ting is worse than none.
+    if (running) {
+      const now = elapsedNow();
+      for (const b of bells) if (b.at <= now) b.fired = true;
+    }
   }
 
   const mmss = (s) => {
     s = Math.max(0, s);
     return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(Math.floor(s%60)).padStart(2,"0");
   };
+  // Session clock = the timed sections only. The 3-2-1 prep is a countdown, not
+  // speaking time, so it is excluded; otherwise "5 min in" would read 5:03.
+  const sessionStart = () => {
+    const first = timeline.find(it => it.kind === "seg");
+    return first ? first.start : 0;
+  };
+  const sessionDur = () => Math.max(0, totalSecs - sessionStart());
   const currentItem = (e) => timeline.find(it => e < it.start + it.dur) || timeline[timeline.length - 1] || null;
   const elapsedNow = () => running ? (performance.now() - startedAt) / 1000 : pausedElapsed;
 
@@ -509,6 +593,54 @@
     layer.style.backgroundColor = rgb;
   }
 
+  /* ---------- bell markers on the time bar -----------------------------
+     Only meaningful where a bell's position is readable. In "session" display
+     the bar spans the whole run, so a mark sits exactly under the second the
+     bell rings. In "section" display the bar spans one section, so only bells
+     that belong to that section are drawn, along with the section boundaries. */
+  let lastMarkKey = "";
+  function paintMarkers(item) {
+    const box = el.markers;
+    if (!box) return;
+    const k = S.marks ? "1" : "0";
+    const session = S.display === "session";
+    const key = k + "|" + (session ? "session" : item.idx) + "|" + totalSecs + "|" + sessionStart() + "|" +
+                bells.map(b => b.at + ":" + b.rings + ":" + (b.fired ? 1 : 0)).join(",");
+    if (key === lastMarkKey) return;
+    lastMarkKey = key;
+    box.innerHTML = "";
+    if (!S.marks || !totalSecs) return;
+
+    if (session) {
+      const sStart = sessionStart(), sDur = sessionDur();
+      for (const b of bells) {
+        if (b.at < sStart) continue;                       // prep bells have no place here
+        const rel = sDur > 0 ? (b.at - sStart) / sDur : 0;
+        const m = document.createElement("i");
+        m.className = "mark";
+        m.dataset.rings = b.rings;
+        m.dataset.hit = b.fired ? "1" : "0";
+        m.style.left = (Math.min(1, Math.max(0, rel)) * 100).toFixed(3) + "%";
+        m.title = mmss(b.at - sStart) + " ×" + b.rings;
+        box.appendChild(m);
+      }
+    } else {
+      // one section: marks for its own bells, plus a faint line at each boundary
+      const own = bells.filter(b => b.seg === item.idx);
+      for (const b of own) {
+        const rel = (b.at - item.start) / item.dur;
+        if (rel < 0 || rel > 1) continue;
+        const m = document.createElement("i");
+        m.className = "mark";
+        m.dataset.rings = b.rings;
+        m.dataset.hit = b.fired ? "1" : "0";
+        m.style.left = (rel * 100).toFixed(3) + "%";
+        m.title = mmss(b.at) + " ×" + b.rings;
+        box.appendChild(m);
+      }
+    }
+  }
+
   /* ---------- render ---------- */
   function render() {
     const e = elapsedNow();
@@ -517,21 +649,42 @@
 
     const remaining = Math.max(0, item.start + item.dur - e);
     const isPrep = item.kind === "prep";
-    const text = isPrep ? String(Math.max(0, Math.ceil(remaining))) : mmss(remaining);
+    const session = S.display === "session";
+    const sStart = sessionStart(), sDur = sessionDur();
+    const shown = session ? Math.max(0, sStart + sDur - e) : remaining;
+
+    // In session display the prep is not part of the session, so before the
+    // run starts the honest number is the session total, not "3".
+    const showTotal = session && !running && !finished && e === 0;
+    const text = showTotal ? mmss(sDur)
+               : isPrep ? String(Math.max(0, Math.ceil(remaining)))
+               : mmss(shown);
     if (el.clock.textContent !== text) el.clock.textContent = text;
+
+    // In session mode the caption says which clock you are reading, because a
+    // big number that is neither the section nor the total is a real hazard.
+    el.caption.textContent = session && !isPrep
+      ? "全场剩余 · SESSION REMAINING"
+      : (session && isPrep ? "准备 · GET READY" : "");
 
     el.zh.textContent = item.title;
     el.en.textContent = item.sub || "";
-    el.fill.style.width = ((item.dur > 0 ? Math.max(0, Math.min(1, remaining / item.dur)) : 0) * 100).toFixed(2) + "%";
+
+    el.fill.style.width = session
+      ? (sDur > 0 ? Math.max(0, Math.min(1, (sStart + sDur - e) / sDur)) * 100 : 0).toFixed(2) + "%"
+      : (item.dur > 0 ? Math.max(0, Math.min(1, remaining / item.dur)) : 0).toFixed(2) + "%";
 
     const i = timeline.indexOf(item);
     const nxt = timeline[i + 1];
-    el.next.textContent = nxt ? "接下来 NEXT · " + nxt.title + " " + mmss(nxt.dur) : "";
+    el.next.textContent = nxt
+      ? "接下来 NEXT · " + nxt.title + " " + (session ? mmss(nxt.dur) : mmss(nxt.dur))
+      : "";
     el.step.textContent = item.kind === "seg"
       ? "第 " + (item.idx + 1) + " / " + S.segments.length + " 段 · SECTION " + (item.idx + 1) + " OF " + S.segments.length
       : "";
 
     paintField(false, item, isPrep ? Math.ceil(remaining) : null);
+    paintMarkers(item);
   }
 
   /* ---------- transport ---------- */
@@ -543,7 +696,7 @@
 
   function startOrPause() {
     ensureAudio();
-    if (el.body.dataset.state === "done") { reset(); return startOrPause(); }
+    if (el.body.dataset.state === "done" || finished) { reset(); return startOrPause(); }
     if (running) {
       pausedElapsed = elapsedNow();
       running = false; stopLoop(); setBtn("idle");
@@ -557,18 +710,26 @@
   }
 
   function reset() {
+    finished = false;
     running = false; stopLoop(); pausedElapsed = 0; lastBlip = null; el._tickN = null;
     cueLog.length = 0;
     buildTimeline();
     bells.forEach(b => b.fired = false);
     lastField = "";
     lastLayer = "";
+    lastMarkKey = "";
     setBtn("idle");
     el.body.dataset.state = "idle";
     render();
   }
 
+  let finished = false;
   function finish() {
+    if (finished) return;                 // idempotent: a late tick must not re-finish
+    finished = true;
+    if (el.markers) el.markers.innerHTML = "";
+    if (el.caption) el.caption.textContent = "";
+    lastMarkKey = "";
     running = false; stopLoop();
     el.body.dataset.state = "done";
     el.zh.textContent = "结束"; el.en.textContent = "TIME";
@@ -640,52 +801,98 @@
            <input class="segTitle" data-i="${i}" data-f="t" value="${esc(sg.t)}" placeholder="标题 Title 标题">
            <button class="del" data-del="${i}" title="删除 Delete">✕</button>
          </div>
-         <div class="segTop" data-row="opts">
+         <div class="segTop" data-row="opts"${sg._warn ? ' style="outline:1px solid rgba(255,159,10,.55);outline-offset:2px;border-radius:8px"' : ""}>
            <input type="number" data-i="${i}" data-f="min" min="0.1" max="180" step="0.5" value="${sg.min}" title="分钟 minutes">
            <span style="font-size:12px;color:var(--dim)">min</span>
-           <select data-i="${i}" data-f="mode" title="铃声时机 bell timing">
-             <option value="end">结束时 end</option>
-             <option value="before">结束前 before</option>
-             <option value="after">开始后 after</option>
-           </select>
-           <input type="number" data-i="${i}" data-f="secs" min="0" max="3600" step="5" value="${sg.bell.secs}" title="秒 seconds">
-           <span style="font-size:12px;color:var(--dim)">s</span>
-           <select data-i="${i}" data-f="rings" title="响几下 rings">
-             <option value="1">叮 ×1</option>
-             <option value="2">叮叮 ×2</option>
-             <option value="3">叮叮叮 ×3</option>
-           </select>
            <span class="swatchRow">${COLOURS.map(c =>
              `<i class="dot${sg.color === c ? " on" : ""}" data-color="${c}" data-i="${i}"
                  style="background:var(--c-${c})" title="${COLOUR_ZH[c]} ${c}"></i>`).join("")}</span>
+         </div>
+         <div class="bellRows">
+           ${sg.bells.map((b, bi) => `
+             <div class="bellRow">
+               <select data-i="${i}" data-b="${bi}" data-f="mode" title="铃声时机 bell timing">
+                 <option value="end">结束时 end</option>
+                 <option value="before">结束前 before</option>
+                 <option value="after">开始后 after</option>
+               </select>
+               <input type="number" data-i="${i}" data-b="${bi}" data-f="secs" min="0" max="3600" step="5"
+                      value="${b.secs}" title="秒 seconds">
+               <span style="font-size:12px;color:var(--dim)">s</span>
+               <select data-i="${i}" data-b="${bi}" data-f="rings" title="响几下 rings">
+                 <option value="1">叮 ×1</option>
+                 <option value="2">叮叮 ×2</option>
+                 <option value="3">叮叮叮 ×3</option>
+               </select>
+               <button class="delBell" data-deli="${i}" data-delb="${bi}" title="删除此铃 remove bell">−</button>
+             </div>`).join("")}
+           <button class="addBell" data-addbell="${i}">＋ 加铃 · add bell</button>
          </div>`;
       list.appendChild(card);
 
-      const modeSel = card.querySelector("[data-f=mode]");
-      modeSel.value = sg.bell.mode || "end";
-      const secsInp = card.querySelector("[data-f=secs]");
-      secsInp.disabled = modeSel.value === "end";
-      secsInp.style.opacity = secsInp.disabled ? ".4" : "1";
-      card.querySelector("[data-f=rings]").value = String(sg.bell.rings || 1);
+      if (sg._warn) {
+        const tip = document.createElement("div");
+        tip.style.cssText = "font-size:11px;color:#FF9F0A;padding:2px 0 0 2px";
+        tip.textContent = sg._warn === "late"
+          ? "铃声超出总时长，不会响 · bell is past the end, it will not ring"
+          : "铃声落在开始之前，已提前到 0 秒 · bell is before the start, moved to 0 s";
+        card.appendChild(tip);
+      }
+      sg.bells.forEach((b, bi) => {
+        const row = card.querySelectorAll(".bellRow")[bi];
+        if (!row) return;
+        const modeSel = row.querySelector("[data-f=mode]");
+        modeSel.value = b.mode || "end";
+        const secsInp = row.querySelector("[data-f=secs]");
+        secsInp.disabled = modeSel.value === "end";
+        secsInp.style.opacity = secsInp.disabled ? ".4" : "1";
+        row.querySelector("[data-f=rings]").value = String(b.rings || 1);
+      });
     });
     const tot = S.segments.reduce((a, sg) => a + (Number(sg.min) || 0), 0);
     $("totalTime").textContent = tot.toFixed(1).replace(/\.0$/, "") + " min 总计";
   }
 
   $("segList").addEventListener("input", (e) => {
-    const t = e.target, i = +t.dataset.i, f = t.dataset.f;
+    const t = e.target, i = +t.dataset.i, f = t.dataset.f, bi = +t.dataset.b;
     if (!f || Number.isNaN(i) || !S.segments[i]) return;
     const sg = S.segments[i];
     if (f === "t") sg.t = t.value;
     else if (f === "min") sg.min = Math.max(0.1, parseFloat(t.value) || 0.1);
-    else if (f === "mode") { sg.bell.mode = t.value; renderSegList(); }
-    else if (f === "secs") sg.bell.secs = Math.max(0, parseInt(t.value, 10) || 0);
-    else if (f === "rings") sg.bell.rings = Math.min(3, Math.max(1, +t.value));
-    save(); buildTimeline();
+    else if (!Number.isNaN(bi) && sg.bells[bi]) {
+      const b = sg.bells[bi];
+      if (f === "mode")  { b.mode = t.value; renderSegList(); }
+      else if (f === "secs")  b.secs  = Math.max(0, parseInt(t.value, 10) || 0);
+      else if (f === "rings") b.rings = Math.min(3, Math.max(1, +t.value));
+    }
+    save(); buildTimeline(); lastMarkKey = "";
     if (!running) render();
   });
 
   $("segList").addEventListener("click", (e) => {
+    const delB = e.target.closest("[data-delb]");
+    if (delB) {
+      const i = +delB.dataset.deli, bi = +delB.dataset.delb;
+      if (S.segments[i] && S.segments[i].bells.length > 1) {
+        S.segments[i].bells.splice(bi, 1);
+        save(); buildTimeline(); renderSegList(); lastMarkKey = "";
+        if (!running) render();
+      }
+      return;
+    }
+    const addB = e.target.closest("[data-addbell]");
+    if (addB) {
+      const i = +addB.dataset.addbell;
+      if (S.segments[i]) {
+        const lastB = S.segments[i].bells[S.segments[i].bells.length - 1] || newBell();
+        S.segments[i].bells.push({ mode: lastB.mode === "end" ? "before" : lastB.mode,
+                                   secs: (Number(lastB.secs) || 0) + 60,
+                                   rings: lastB.rings || 1 });
+        save(); buildTimeline(); renderSegList(); lastMarkKey = "";
+        if (!running) render();
+      }
+      return;
+    }
     const del = e.target.closest("[data-del]");
     if (del) {
       if (S.segments.length <= 1) return;
@@ -703,7 +910,7 @@
   $("btnAddSeg").addEventListener("click", () => {
     const last = S.segments[S.segments.length - 1] || { color:"blue" };
     S.segments.push({ t:"新分段 " + (S.segments.length + 1), s:"", min:5,
-                      color: last.color, bell:{ mode:"end", secs:0, rings:1 } });
+                      color: last.color, bells:[ newBell() ] });
     save(); buildTimeline(); renderSegList();
     const card = $("segList").lastElementChild;
     if (card) { card.scrollIntoView({ block:"nearest" }); card.querySelector(".segTitle").focus(); }
@@ -715,7 +922,7 @@
     const on = open !== false;
     sheet.classList.toggle("open", on);
     el.body.classList.toggle("settings-open", on);
-    if (on) { ensureAudio(); syncControls(); renderSegList(); }
+    if (on) { ensureAudio(); syncControls(); renderSegList(); lastMarkKey = ""; render(); }
   }
   $("btnSettings").addEventListener("click", () => { ensureAudio(); openSheet(true); });
   $("sheetClose").addEventListener("click", () => openSheet(false));
@@ -727,16 +934,22 @@
   document.querySelectorAll("#segBackdrop button").forEach(b => b.addEventListener("click", () => {
     S.backdrop = b.dataset.bg; save(); syncControls(); paintField(true); render();
   }));
+  document.querySelectorAll("#segDisplay button").forEach(b => b.addEventListener("click", () => {
+    S.display = b.dataset.display; save(); syncControls(); lastMarkKey = ""; render();
+  }));
 
   function syncControls() {
     $("swPrep").checked = !!S.prep.on;
     $("setPrepSecs").value = S.prep.secs;
     $("swLights").checked = !!S.prep.lights;
+    $("swMarks").checked = !!S.marks;
     $("swTick").checked = !!S.tick;
     $("vol").value = Math.round(S.volume * 100);
     $("volNum").textContent = Math.round(S.volume * 100);
     document.querySelectorAll("#segTheme button").forEach(b => b.classList.toggle("on", b.dataset.theme === S.theme));
     document.querySelectorAll("#segBackdrop button").forEach(b => b.classList.toggle("on", b.dataset.bg === S.backdrop));
+    document.querySelectorAll("#segDisplay button").forEach(b => b.classList.toggle("on", b.dataset.display === S.display));
+    el.body.dataset.display = S.display;      // drives the caption's visibility
   }
 
   $("swPrep").addEventListener("change", (e) => { S.prep.on = e.target.checked; save(); reset(); });
@@ -745,6 +958,9 @@
   });
   $("swLights").addEventListener("change", (e) => { S.prep.lights = e.target.checked; save(); paintField(true); render(); });
   $("swTick").addEventListener("change", (e) => { S.tick = e.target.checked; save(); });
+  $("swMarks").addEventListener("change", (e) => {
+    S.marks = e.target.checked; save(); lastMarkKey = ""; render();
+  });
   $("vol").addEventListener("input", (e) => {
     S.volume = Math.max(0, Math.min(1, +e.target.value / 100));
     $("volNum").textContent = e.target.value;
@@ -797,11 +1013,16 @@
     setTheme:    (t) => { S.theme = t; save(); applyTheme(); },
     setVolume:   (v) => { S.volume = Math.max(0, Math.min(1, v)); save(); syncControls(); ensureAudio(); applyVolume(); },
     setBackdrop: (m) => { S.backdrop = m; save(); syncControls(); paintField(true); render(); },
+    setDisplay:  (m) => { S.display = m; save(); syncControls(); lastMarkKey = ""; render(); },
+    setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
     setSegments: (arr) => {
-      S.segments = arr.map(sg => Object.assign(
-        { t:"", s:"", min:5, color:"blue", bell:{ mode:"end", secs:0, rings:1 } }, sg));
-      S.segments.forEach(sg => { sg.bell = Object.assign({ mode:"end", secs:0, rings:1 }, sg.bell || {}); });
-      save(); buildTimeline(); renderSegList(); reset();
+      S.segments = arr.map(sg => {
+        const out = Object.assign({ t:"", s:"", min:5, color:"blue" }, sg);
+        out.bells = toBellList(sg);
+        delete out.bell;
+        return out;
+      });
+      save(); buildTimeline(); renderSegList(); lastMarkKey = ""; reset();
     },
     setPrep:     (o) => { Object.assign(S.prep, o); save(); syncControls(); reset(); },
     state: () => ({
