@@ -17,13 +17,56 @@ Open that URL on the projector laptop — nothing to install.
 | Overtime · 加时 5 分钟 | **05:00** blue countdown · 蓝色倒数 | — |
 | 5 min reached · 加时结束 | red "结束 / TIME" · 红色结束 | **ting ting** (double bell · 双响铃) |
 
+## Three ways to run it · 三种跑法
+
+Pick whichever fits the venue. All three run the same timer.
+按会场情况选一种，三种跑的都是同一个计时器。
+
+### 1 · Just open the URL (easiest · 最省事)
+
+**https://ah-keat.github.io/contest-timer/**
+
+Open it on the projector laptop, press `F` for full screen. Nothing to install, nothing to download.
+Works on phones too. Needs internet for the first load only.
+在投影电脑上打开，按 `F` 全屏。不用安装、不用下载，手机也能用。只有第一次加载需要网络。
+
+### 2 · Download the file (works fully offline · 完全离线)
+
+1. Download **`index.html`**:
+   [**Download index.html**](https://ah-keat.github.io/contest-timer/index.html) — right-click → *Save link as…*
+   (or use GitHub's green **Code ▾ → Download ZIP**, then unzip)
+   下载 **`index.html`**：上面的链接右键 →「链接另存为…」
+   （或用 GitHub 绿色 **Code ▾ → Download ZIP** 后解压）
+
+2. Double-click the downloaded file. It opens in your browser.
+   双击下载的文件，用浏览器打开。
+
+3. If it opens as **source code instead of the timer**, you downloaded the wrong link — the
+   file must end in `.html` and come from the address above, not from the "Raw" button.
+   如果打开看到**源代码而不是计时器**，说明你下错了链接 —— 文件必须以 `.html` 结尾、
+   且来自上面那个地址，不是「Raw」按钮。
+
+**Why "Raw" is the wrong link:** GitHub's Raw button serves the file as `text/plain`, so the
+browser shows the code. Symbolic details matter — a web server must send `text/html` for the
+browser to render it.
+**为什么「Raw」不能用：** GitHub 的 Raw 按钮以 `text/plain` 送出文件，浏览器就显示源码。
+服务端必须送回 `text/html`，浏览器才会渲染。
+
+### 3 · Clone the repo (for developers · 开发者用)
+
+```bash
+git clone https://github.com/AH-KEAT/contest-timer.git
+cd contest-timer
+open index.html          # macOS
+# start index.html       # Windows
+# xdg-open index.html    # Linux
+```
+
 ## How to use · 怎么用
 
-1. Double-click `contest-timer.html` — opens in your browser, no internet needed.
-   双击 `contest-timer.html` 用浏览器打开，无需联网。
-2. Click **开始 START** (or `Space`) when the contestant walks up.
+1. Click **开始 START** (or `Space`) when the contestant walks up.
    选手上台时点「开始 START」或按空格键。
-3. Press `F` for full-screen so the speaker can read it across the room.
+2. Press `F` for full-screen so the speaker can read it across the room.
    按 `F` 全屏，台上的人从远处也看得清。
 
 Shortcuts · 快捷键: `Space` start/pause · `R` reset · `F` fullscreen · **`S` settings** · `Esc` close settings
@@ -43,9 +86,9 @@ Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser
 URL params still work and override the saved settings · 网址参数仍然有效，会覆盖已保存的设置:
 
 ```
-contest-timer.html?p1=12&p2=3    # 12 min speech + 3 min Q&A
-contest-timer.html?prep=0        # skip the 3-2-1 countdown 跳过倒数
-contest-timer.html?theme=light   # force light theme 强制浅色
+index.html?p1=12&p2=3    # 12 min speech + 3 min Q&A
+index.html?prep=0        # skip the 3-2-1 countdown 跳过倒数
+index.html?theme=light   # force light theme 强制浅色
 ```
 
 ## Theme & colour standard · 主题与配色标准
@@ -99,5 +142,5 @@ Custom colours you pick apply to both themes · 自选颜色在两种主题下�
 | timer.media | Plain 15-minute preset, no frills. 最简 15 分钟倒数 | https://timer.media/ |
 | YouTube 15-min countdown | Ready-made video with ticking + end chime (play it full screen). 现成视频，带滴答与结束铃 | https://www.youtube.com/watch?v=AQgwWZESsbg |
 
-Note: none of the free sites do the exact "3-2-1 → 15 min → ting → 5 min → ting ting" chain in one run — that's why `contest-timer.html` exists.
-注意：这些免费网站没有一个能一次跑完「3-2-1 → 15 分钟 → 叮 → 5 分钟 → 叮叮」的完整流程，所以做了 `contest-timer.html`。
+Note: none of the free sites do the exact "3-2-1 → 15 min → ting → 5 min → ting ting" chain in one run — that's why this project exists.
+注意：这些免费网站没有一个能一次跑完「3-2-1 → 15 分钟 → 叮 → 5 分钟 → 叮叮」的完整流程，所以做了这个项目。
