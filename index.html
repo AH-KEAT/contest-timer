@@ -788,9 +788,13 @@
     el.zh.textContent = item.title;
     el.en.textContent = item.sub || "";
 
+    // PROGRESS, not remaining. The bar fills left -> right as the run is consumed,
+    // so its leading edge sits on the same axis as the bell marks (both are
+    // elapsed/dur). Driving it from `remaining` drained it right -> left and put
+    // the edge at 1-progress, where it could never line up with a mark.
     el.fill.style.width = session
-      ? (sDur > 0 ? Math.max(0, Math.min(1, (sStart + sDur - e) / sDur)) * 100 : 0).toFixed(2) + "%"
-      : (item.dur > 0 ? Math.max(0, Math.min(1, remaining / item.dur)) : 0).toFixed(2) + "%";
+      ? (sDur > 0 ? Math.max(0, Math.min(1, (e - sStart) / sDur)) * 100 : 0).toFixed(2) + "%"
+      : (item.dur > 0 ? Math.max(0, Math.min(1, (e - item.start) / item.dur)) * 100 : 0).toFixed(2) + "%";
 
     const i = timeline.indexOf(item);
     const nxt = timeline[i + 1];
@@ -862,7 +866,7 @@
     el.body.dataset.state = "done";
     el.zh.textContent = "结束"; el.en.textContent = "TIME";
     el.clock.textContent = "00:00";
-    el.fill.style.width = "0%";
+    el.fill.style.width = "100%";      // the run is fully consumed on the progress axis
     el.next.textContent = "请下一位选手准备 · Next speaker, please";
     el.step.textContent = "";
     const light = effTheme() === "light";
