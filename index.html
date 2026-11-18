@@ -233,6 +233,17 @@
         <div class="lbl"><b>每秒换色</b><em>Red → amber → green 红→黄→绿</em></div>
         <label class="sw"><input id="swLights" type="checkbox" checked><i></i></label>
       </div>
+      <div class="row">
+        <div class="lbl"><b>语音倒数</b><em>Say "three two one" · 念出「三、二、一」</em></div>
+        <label class="sw"><input id="swVoice" type="checkbox"><i></i></label>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>语音语言</b><em>Voice language</em></div>
+        <div class="seg" id="segVoiceLang">
+          <button data-lang="en">English</button>
+          <button data-lang="zh">中文</button>
+        </div>
+      </div>
     </div>
 
     <div class="groupLabel"><span>外观 APPEARANCE</span></div>
@@ -325,6 +336,8 @@
     { t:"问答 / 加时", s:"Q & A", min:5, sec:0, color:"blue",
       bells:[ { mode:"end", secs:0, rings:2 } ] }
   ]);
+  const MAX_RINGS = 6;      // six dings is the most anyone has asked for; a
+                            // competition interval rarely runs longer
   const newBell = () => ({ mode:"end", secs:0, rings:1 });
   // A section's length is exact seconds: min*60 + sec. `min` stays for
   // compatibility with older saves, `sec` adds the precision a contest needs
@@ -335,12 +348,14 @@
   const toBellList = (sg) => {
     if (Array.isArray(sg.bells) && sg.bells.length) {
       return sg.bells.map(b => Object.assign(newBell(), b || {}));
+
+      
     }
     return [ Object.assign(newBell(), sg.bell || {}) ];
   };
   const DEFAULTS = () => ({
     theme:"auto", backdrop:"soft", display:"section", marks:true, tick:false, volume:0.7,
-    prep:{ on:true, secs:3, lights:true },
+    prep:{ on:true, secs:3, lights:true, voice:false, voiceLang:"en" },
     segments: DEFAULT_SEGMENTS(),
     overrides: structuredClone(NO_OVERRIDES)
   });
@@ -494,6 +509,56 @@
     o.start(t); o.stop(t + (dur || 0.12) + 0.05);
   }
   const ring = (times) => { for (let i = 0; i < times; i++) bell(i * 0.46, 760, 2.4); };
+
+  /* Spoken "three two one" for the prep countdown.
+     SpeechSynthesis is a separate browser facility from Web Audio: it is not
+     affected by the AudioContext gesture rules, but iOS still requires one
+     earlier gesture, and voice availability varies by platform, so this must
+     degrade silently when there is no voice. */
+  const VOICE_WORDS = { 3:"three", 2:"two", 1:"one" };
+  const VOICE_WORDS_ZH = { 3:"三", 2:"二", 1:"一" };
+  let voiceOk = null;
+
+  function voiceSupport() {
+    if (voiceOk !== null) return voiceOk;
+    voiceOk = typeof window.speechSynthesis !== "undefined" &&
+              typeof window.SpeechSynthesisUtterance !== "undefined";
+    return voiceOk;
+  }
+
+  function pickVoice(lang) {
+    try {
+      const list = window.speechSynthesis.getVoices() || [];
+      if (!list.length) return null;
+      const want = lang.startsWith("zh") ? "zh" : "en";
+      return list.find(v => (v.lang || "").toLowerCase().startsWith(want)) || list[0];
+    } catch (e) { return null; }
+  }
+
+  const spokenLog = [];
+  function speak(word) {
+    spokenLog.push({ word, at: Math.round(performance.now()) });
+    if (!voiceSupport()) return false;
+    try {
+      const u = new window.SpeechSynthesisUtterance(word);
+      const lang = S.prep.voiceLang === "zh" ? "zh-CN" : "en-US";
+      u.lang = lang;
+      const v = pickVoice(lang);
+      if (v) u.voice = v;
+      u.rate = 0.95;
+      u.pitch = 1;
+      u.volume = Math.max(0, Math.min(1, S.volume));
+      window.speechSynthesis.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+  async function sayNumber(n) {
+    const word = S.prep.voiceLang === "zh" ? VOICE_WORDS_ZH[n] : VOICE_WORDS[n];
+    if (!word) return;
+    // if a previous number is still speaking, cancel so they do not queue up
+    if (voiceSupport()) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    speak(word);
+  }
   const GO = async () => { await tone(0, 880, .16, .34); await tone(.13, 1175, .22, .3); };
   const cueLog = [];
   const logCue = (name) => cueLog.push({ name, at: Math.round(performance.now()) });
@@ -534,7 +599,7 @@
         const raw = at;
         at = Math.max(0, Math.min(totalSecs, at));   // a bell can only ring inside the run
         if (raw !== at && !sg._warn) sg._warn = (raw < 0 ? "early" : "late");
-        bells.push({ at, rings: Math.min(3, Math.max(1, Number(b.rings) || 1)),
+        bells.push({ at, rings: Math.min(MAX_RINGS, Math.max(1, Number(b.rings) || 1)),
                      fired: rungTimes.has(at), seg:i });
       }
     });
@@ -731,23 +796,11 @@
     const nxt = timeline[i + 1];
 
     if (session) {
-      // MERGED RUN: the sections are one continuous session, so show what the
-      // section structure would only distract from — no "1 of 2", no "next section".
+      // MERGED RUN: one continuous session. The section title above the digits
+      // already says where you are, so nothing else is needed here — an agenda
+      // line just adds furniture and repeats what the title says.
+      el.next.textContent = "";
       el.step.textContent = "";
-      // Inline the remaining section names so the timekeeper still knows where
-      // in the agenda the run currently is, without a per-section countdown.
-      // An agenda, not a countdown: each stamp is when that section ENDS
-      // measured from the session start, so it reads like a running order.
-      const agenda = S.segments
-        .map((sg, si) => {
-          const it = timeline.find(x => x.kind === "seg" && x.idx === si);
-          if (!it) return "";
-          const mark = si === item.idx ? "▸ " : "";
-          return mark + sg.t + " " + mmss(Math.max(0, it.start + it.dur - sessionStart()));
-        })
-        .filter(Boolean)
-        .join("   ·   ");
-      el.next.textContent = "议程 AGENDA · " + agenda;
     } else {
       el.next.textContent = nxt
         ? "接下来 NEXT · " + nxt.title + " " + mmss(nxt.dur)
@@ -784,6 +837,7 @@
   }
 
   function reset() {
+    if (voiceSupport()) { try { window.speechSynthesis.cancel(); } catch (e) {} }
     finished = false;
     running = false; stopLoop(); pausedElapsed = 0; lastBlip = null; el._tickN = null;
     cueLog.length = 0;
@@ -839,7 +893,13 @@
     const item = currentItem(e);
     if (item && item.kind === "prep") {
       const n = Math.max(1, Math.ceil(item.start + item.dur - e));
-      if (n !== lastBlip && n <= S.prep.secs) { lastBlip = n; tone(0, 620, .09, .2); }
+      if (n !== lastBlip && n <= S.prep.secs) {
+        lastBlip = n;
+        // the voice replaces the blip rather than doubling it — two cues at once
+        // reads as a glitch, not as emphasis
+        if (S.prep.voice) { logCue("say" + n); sayNumber(n); }
+        else tone(0, 620, .09, .2);
+      }
     }
     if (S.tick && item && item.kind === "seg") {
       const rem = item.start + item.dur - e;
@@ -896,9 +956,8 @@
                       value="${b.secs}" title="秒 seconds">
                <span style="font-size:12px;color:var(--dim)">s</span>
                <select data-i="${i}" data-b="${bi}" data-f="rings" title="响几下 rings">
-                 <option value="1">叮 ×1</option>
-                 <option value="2">叮叮 ×2</option>
-                 <option value="3">叮叮叮 ×3</option>
+                 ${[1,2,3,4,5,6].map(n =>
+                   `<option value="${n}">${"叮".repeat(Math.min(n, 3))} ×${n}</option>`).join("")}
                </select>
                <button class="delBell" data-deli="${i}" data-delb="${bi}" title="删除此铃 remove bell">−</button>
              </div>`).join("")}
@@ -933,7 +992,7 @@
       const b = sg.bells[bi];
       if (f === "mode")  { b.mode = t.value; renderSegList(); }
       else if (f === "secs")  b.secs  = Math.max(0, parseInt(t.value, 10) || 0);
-      else if (f === "rings") b.rings = Math.min(3, Math.max(1, +t.value));
+      else if (f === "rings") b.rings = Math.min(MAX_RINGS, Math.max(1, +t.value));
     }
     save(); buildTimeline(); lastMarkKey = "";
     // refresh the 总计 readout in place — re-rendering the whole list on every
@@ -945,6 +1004,20 @@
   });
 
   // Paint or clear the "this bell cannot ring" flag without rebuilding the list.
+  function alertIfNoVoice() {
+    if (voiceSupport()) return;
+    const b = $("swVoice");
+    b.checked = false; S.prep.voice = false; save();
+    const row = b.closest(".row");
+    if (row && !row.querySelector(".voiceTip")) {
+      const tip = document.createElement("div");
+      tip.className = "voiceTip";
+      tip.style.cssText = "font-size:11px;color:#FF9F0A;padding:0 0 6px 4px";
+      tip.textContent = "此浏览器不支持语音 · this browser has no speech voice";
+      row.after(tip);
+    }
+  }
+
   function refreshWarnings() {
     document.querySelectorAll(".segCard").forEach((card, i) => {
       const sg = S.segments[i];
@@ -1040,6 +1113,9 @@
     $("swPrep").checked = !!S.prep.on;
     $("setPrepSecs").value = S.prep.secs;
     $("swLights").checked = !!S.prep.lights;
+    $("swVoice").checked = !!S.prep.voice;
+    document.querySelectorAll("#segVoiceLang button").forEach(b =>
+      b.classList.toggle("on", b.dataset.lang === (S.prep.voiceLang || "en")));
     $("swMarks").checked = !!S.marks;
     $("swTick").checked = !!S.tick;
     $("vol").value = Math.round(S.volume * 100);
@@ -1055,6 +1131,22 @@
     S.prep.secs = Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 3)); save(); reset();
   });
   $("swLights").addEventListener("change", (e) => { S.prep.lights = e.target.checked; save(); paintField(true); render(); });
+  $("swVoice").addEventListener("change", (e) => {
+    S.prep.voice = e.target.checked; save();
+    ensureAudio();
+    if (e.target.checked) {
+      // speak once on enable so the timekeeper hears the voice and volume now,
+      // not for the first time in front of the room
+      if (!voiceSupport()) { alertIfNoVoice(); return; }
+      try { window.speechSynthesis.cancel(); } catch (e2) {}
+      speak(S.prep.voiceLang === "zh" ? "语音倒数已开启" : "voice countdown on");
+    }
+  });
+  document.querySelectorAll("#segVoiceLang button").forEach(b => b.addEventListener("click", async () => {
+    S.prep.voiceLang = b.dataset.lang; save(); syncControls();
+    ensureAudio();
+    speak(S.prep.voiceLang === "zh" ? "三" : "three");
+  }));
   $("swTick").addEventListener("change", (e) => { S.tick = e.target.checked; save(); });
   $("swMarks").addEventListener("change", (e) => {
     S.marks = e.target.checked; save(); lastMarkKey = ""; render();
@@ -1065,7 +1157,7 @@
     ensureAudio(); applyVolume(); save();
   });
   document.querySelectorAll("[data-test]").forEach(b => b.addEventListener("click", async () => {
-    await ensureAudio(); applyVolume(); ring(Math.min(3, +b.dataset.test));
+    await ensureAudio(); applyVolume(); ring(Math.min(MAX_RINGS, +b.dataset.test));
   }));
 
   const colourInputs = { cIndigo:"indigo", cGreen:"green", cBlue:"blue", cOrange:"orange", cRed:"red" };
@@ -1113,6 +1205,13 @@
     setBackdrop: (m) => { S.backdrop = m; save(); syncControls(); paintField(true); render(); },
     setDisplay:  (m) => { S.display = m; save(); syncControls(); lastMarkKey = ""; render(); },
     setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
+    setVoice:    (on, lang) => {
+      S.prep.voice = !!on;
+      if (lang) S.prep.voiceLang = lang;
+      save(); syncControls();
+    },
+    voiceSupport: () => voiceSupport(),
+    spoken: () => spokenLog.slice(),
     setSegments: (arr) => {
       S.segments = arr.map(sg => {
         const out = Object.assign({ t:"", s:"", min:5, sec:0, color:"blue" }, sg);
