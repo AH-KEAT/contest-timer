@@ -3,6 +3,10 @@
 Full-screen presentation / speech-competition timer with the exact sequence you asked for, now with a settings sheet, light/dark themes, volume control and phase-coloured backgrounds in Apple's system palette.
 全屏演讲 / 比赛计时器，完全按照你要求的时间流程；已加入「设置」面板、浅色/深色主题、音量控制，以及参照 Apple 系统色的阶段背景色。
 
+**Live · 线上版：https://ah-keat.github.io/contest-timer/**
+Open that URL on the projector laptop — nothing to install.
+在投影用的电脑上直接开这个网址，不用安装任何东西。
+
 ## Sequence · 时间流程
 
 | Step · 步骤 | On screen · 屏幕显示 | Sound · 音效 |
