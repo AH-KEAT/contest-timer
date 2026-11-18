@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Contest Timer · 比赛计时器</title>
+<style>
+  /* ========== Apple system palette (Human Interface Guidelines) ========== */
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    /* dark theme tokens (default) */
+    --field:#000000; --prep-fg:#FFFFFF;
+    --bg:#000000; --fg:#FFFFFF; --dim:#98989F;
+    --surface:#1C1C1E; --surface-2:#2C2C2E; --border:rgba(255,255,255,.13);
+    --track:#2C2C2E;
+    /* phase colours — overridden inline from settings */
+    --c-prep:#5E5CE6; --c-main:#30D158; --c-qa:#0A84FF; --c-warn:#FF9F0A; --c-done:#FF453A;
+    background:var(--field); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;
+    overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-font-smoothing:antialiased;
+    transition:background-color .35s ease,color .35s ease;
+  }
+  body[data-theme="light"]{
+    --bg:#F2F2F7; --fg:#000000; --dim:#8E8E93;
+    --surface:#FFFFFF; --surface-2:#F2F2F7; --border:rgba(0,0,0,.10);
+    --track:#E5E5EA;
+  }
+
+  /* the painted backdrop that follows the phase (set from JS as --field) */
+  #wash{position:fixed;inset:0;pointer-events:none;transition:opacity .5s ease;opacity:0}
+
+  #stage{display:flex;flex-direction:column;align-items:center;justify-content:center;
+         gap:clamp(6px,1.5vh,18px);text-align:center;padding:2vh 3vw;z-index:2}
+  #phaseZh{font-size:clamp(17px,3vh,38px);font-weight:600;letter-spacing:.08em;color:var(--dim);transition:color .35s}
+  #phaseEn{font-size:clamp(11px,1.6vh,20px);font-weight:500;letter-spacing:.26em;color:var(--dim);text-transform:uppercase;transition:color .35s}
+  #clock{
+    font-size:clamp(84px,25vh,330px);font-weight:700;line-height:.92;letter-spacing:-.025em;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
+    color:var(--fg);transition:color .35s;
+  }
+  #clock.warn{color:var(--c-warn)}
+  #clock.danger{color:var(--c-done)}
+  #bar{width:min(78vw,1180px);height:clamp(5px,.9vh,10px);border-radius:99px;background:var(--track);overflow:hidden}
+  #fill{height:100%;width:100%;border-radius:99px;background:var(--fg);transition:background .35s}
+  #next{font-size:clamp(12px,1.9vh,24px);color:var(--dim);letter-spacing:.04em;min-height:1.4em;transition:color .35s}
+
+  body[data-state="prep"] #clock,body[data-state="prep"] #phaseZh,body[data-state="prep"] #phaseEn{color:var(--prep-fg)}
+  body[data-state="prep"] #fill{background:var(--prep-fg)}
+  body[data-state="main"] #clock,body[data-state="main"] #phaseZh,body[data-state="main"] #phaseEn{color:var(--c-main)}
+  body[data-state="main"] #fill{background:var(--c-main)}
+  body[data-state="qa"] #clock,body[data-state="qa"] #phaseZh,body[data-state="qa"] #phaseEn{color:var(--c-qa)}
+  body[data-state="qa"] #fill{background:var(--c-qa)}
+  body[data-state="done"] #clock,body[data-state="done"] #phaseZh,body[data-state="done"] #phaseEn{color:var(--c-done)}
+  body[data-state="done"] #fill{background:var(--c-done)}
+
+  /* ========== floating controls ========== */
+  #controls{position:fixed;left:0;right:0;bottom:0;display:flex;gap:9px;align-items:center;justify-content:center;
+    padding:16px;opacity:0;transform:translateY(10px);transition:opacity .28s,transform .28s;z-index:6;flex-wrap:wrap;
+    background:linear-gradient(transparent,rgba(0,0,0,.30))}
+  body[data-theme="light"] #controls{background:linear-gradient(transparent,rgba(0,0,0,.05))}
+  body:hover #controls,body.show-ui #controls,body.settings-open #controls{opacity:1;transform:none}
+
+  #hint{position:fixed;top:16px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.08em;
+    color:var(--dim);opacity:0;transition:opacity .28s;z-index:5}
+  body:hover #hint,body.show-ui #hint{opacity:1}
+
+  button{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--border);
+    border-radius:11px;padding:10px 16px;cursor:pointer;transition:background .15s,transform .08s}
+  button:hover{background:var(--surface-2)}
+  button:active{transform:scale(.97)}
+  button.primary{background:#34C759;border-color:transparent;color:#fff;font-weight:600}
+  button.primary:hover{background:#2DB34E}
+  button.icon{padding:10px 13px;font-size:16px;line-height:1}
+
+  /* on a solid phase backdrop the digits switch to a contrasting colour */
+  body.solid-field[data-state="prep"] #clock,body.solid-field[data-state="prep"] #phaseZh,
+  body.solid-field[data-state="prep"] #phaseEn,body.solid-field[data-state="main"] #clock,
+  body.solid-field[data-state="main"] #phaseZh,body.solid-field[data-state="main"] #phaseEn,
+  body.solid-field[data-state="qa"] #clock,body.solid-field[data-state="qa"] #phaseZh,
+  body.solid-field[data-state="qa"] #phaseEn,body.solid-field[data-state="done"] #clock,
+  body.solid-field[data-state="done"] #phaseZh,body.solid-field[data-state="done"] #phaseEn{color:var(--field-fg)}
+  body.solid-field #fill{background:var(--field-fg)}
+  body.solid-field #bar{background:rgba(255,255,255,.22)}
+  body.solid-field[data-theme="light"] #bar{background:rgba(0,0,0,.16)}
+  body.solid-field #next{color:var(--field-fg);opacity:.72}
+
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:3}
+
+  /* ========== settings sheet ========== */
+  #sheet{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%)}
+  body[data-theme="light"] #sheet{background:rgba(0,0,0,.20)}
+  #sheet.open{display:flex}
+  .card{width:min(500px,100%);max-height:88vh;overflow:auto;background:var(--surface);border-radius:22px;
+    border:1px solid var(--border);box-shadow:0 28px 80px rgba(0,0,0,.5);padding:18px 18px 20px;
+    animation:pop .26s cubic-bezier(.2,.9,.3,1.15)}
+  @keyframes pop{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+  .cardHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .cardHead h2{font-size:17px;font-weight:700;margin:0}
+  .cardHead h2 small{font-weight:500;color:var(--dim);font-size:13px;margin-left:6px}
+  #sheetClose{background:var(--surface-2);border:none;color:#007AFF;font-weight:600;padding:8px 15px;border-radius:99px;font-size:14px;cursor:pointer}
+  body[data-theme="dark"] #sheetClose{color:#0A84FF}
+  .groupLabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 6px 4px;font-weight:600}
+  .group{background:var(--surface-2);border-radius:14px;margin-bottom:16px;overflow:hidden}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;font-size:14px;
+    border-bottom:1px solid var(--border);min-height:44px}
+  .row:last-child{border-bottom:none}
+  .row .lbl{display:flex;flex-direction:column;gap:2px}
+  .row .lbl b{font-size:14px;font-weight:500}
+  .row .lbl em{font-size:11px;color:var(--dim);font-style:normal}
+  .row input[type=number]{width:64px;text-align:center;font:inherit;font-size:14px;padding:7px 8px;border-radius:9px;
+    border:1px solid var(--border);background:var(--surface);color:var(--fg)}
+  .row input[type=color]{width:36px;height:31px;padding:0;border:1px solid var(--border);border-radius:8px;
+    background:var(--surface);cursor:pointer}
+  .row input[type=range]{width:132px;accent-color:#34C759}
+  .seg{display:flex;background:var(--track);border-radius:9px;padding:2px;gap:2px}
+  .seg button{background:transparent;border:none;color:var(--fg);font-size:12.5px;font-weight:600;padding:6px 11px;
+    border-radius:7px;cursor:pointer}
+  .seg button.on{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+  .sw{position:relative;width:50px;height:30px;flex:none;display:inline-block;cursor:pointer}
+  .sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+  .sw i{position:absolute;inset:0;background:var(--track);border-radius:99px;transition:background .2s}
+  .sw i:after{content:"";position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:99px;
+    background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .2s}
+  .sw input:checked + i{background:#34C759}
+  .sw input:checked + i:after{transform:translateX(20px)}
+  .mini{font-size:13px;padding:7px 11px;border-radius:9px}
+  .row .inl{display:flex;align-items:center;gap:7px}
+  .row .inl span{font-size:12px;color:var(--dim)}
+  .note{font-size:11.5px;line-height:1.6;color:var(--dim);padding:12px 4px 2px}
+  .note b{color:var(--fg)}
+  .note kbd{font-family:inherit;background:var(--track);border-radius:4px;padding:1px 5px;font-size:11px;color:var(--fg)}
+  .restore{width:100%;background:transparent;border:1px dashed var(--border);color:#007AFF;
+    font-size:13px;padding:10px;border-radius:10px;cursor:pointer}
+  body[data-theme="dark"] .restore{color:#0A84FF}
+  .paletteRow{display:flex;align-items:center;gap:8px}
+  .chip{width:18px;height:18px;border-radius:99px;border:1px solid var(--border)}
+</style>
+</head>
+<body data-state="prep" data-theme="dark">
+<div id="flash"></div>
+<div id="wash"></div>
+
+<div id="stage">
+  <div id="phaseZh">准备</div>
+  <div id="phaseEn">GET READY</div>
+  <div id="clock">3</div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="next"></div>
+</div>
+
+<div id="hint">SPACE 开始/暂停 · R 重置 · F 全屏 · S 设置 &nbsp;|&nbsp; Space · R reset · F fullscreen · S settings</div>
+
+<div id="controls">
+  <button id="btnStart" class="primary">开始 START</button>
+  <button id="btnReset">重置 RESET</button>
+  <button id="btnFull">全屏 FULL</button>
+  <button id="btnSettings" class="icon" title="设置 Settings (S)">⚙︎</button>
+</div>
+
+<div id="sheet">
+  <div class="card">
+    <div class="cardHead"><h2>设置<small>Settings</small></h2><button id="sheetClose">完成 Done</button></div>
+
+    <div class="groupLabel">外观 Appearance</div>
+    <div class="group">
+      <div class="row">
+        <div class="lbl"><b>主题 Theme</b><em>自动 / 浅色 / 深色</em></div>
+        <div class="seg" id="segTheme">
+          <button data-theme="auto" class="on">自动</button>
+          <button data-theme="light">浅色</button>
+          <button data-theme="dark">深色</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="groupLabel">计时 Timing</div>
+    <div class="group">
+      <div class="row">
+        <div class="lbl"><b>准备倒数 3-2-1</b><em>Prep countdown</em></div>
+        <label class="sw"><input id="swPrep" type="checkbox" checked><i></i></label>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>主环节 Main</b><em>演讲时长 speech length</em></div>
+        <div class="inl"><input id="setMain" type="number" min="1" max="180" step="1" value="15"><span>min</span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>加时 Overtime</b><em>加时 / 问答长度</em></div>
+        <div class="inl"><input id="setExtra" type="number" min="0" max="120" step="1" value="5"><span>min</span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>最后 30 秒滴答</b><em>Soft tick in final 30 s</em></div>
+        <label class="sw"><input id="swTick" type="checkbox"><i></i></label>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>3-2-1 背景色</b><em>Backdrop during the countdown</em></div>
+        <div class="seg" id="segPrepBg">
+          <button data-bg="off">无</button>
+          <button data-bg="soft">淡</button>
+          <button data-bg="solid" class="on">满屏</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>演讲中背景</b><em>Backdrop during the talk</em></div>
+        <div class="seg" id="segOtherBg">
+          <button data-bg="off">无</button>
+          <button data-bg="soft" class="on">淡</button>
+          <button data-bg="solid">满屏</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="groupLabel">声音 Sound</div>
+    <div class="group">
+      <div class="row">
+        <div class="lbl"><b>音量 Volume</b><em>铃声大小 bell loudness</em></div>
+        <div class="inl"><input id="vol" type="range" min="0" max="100" step="1" value="70"><span id="volNum">70</span></div>
+      </div>
+      <div class="row">
+        <div class="lbl"><b>试听 Test</b><em>听听铃声是否够响</em></div>
+        <div class="inl">
+          <button class="mini" data-test="ting">叮</button>
+          <button class="mini" data-test="tingting">叮叮</button>
+          <button class="mini" data-test="beep">哔</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="groupLabel">阶段颜色 Phase colours</div>
+    <div class="group">
+      <div class="row">
+        <div class="lbl"><b>准备 3-2-1</b><em>System Indigo 靛蓝</em></div>
+        <input id="cPrep" type="color" value="#5E5CE6">
+      </div>
+      <div class="row">
+        <div class="lbl"><b>演讲进行中</b><em>System Green 绿色</em></div>
+        <input id="cMain" type="color" value="#30D158">
+      </div>
+      <div class="row">
+        <div class="lbl"><b>加时 / 问答</b><em>System Blue 蓝色</em></div>
+        <input id="cQa" type="color" value="#0A84FF">
+      </div>
+      <div class="row">
+        <div class="lbl"><b>即将结束</b><em>System Orange 橙色</em></div>
+        <input id="cWarn" type="color" value="#FF9F0A">
+      </div>
+      <div class="row">
+        <div class="lbl"><b>结束 / 超时</b><em>System Red 红色</em></div>
+        <input id="cDone" type="color" value="#FF453A">
+      </div>
+      <div class="row"><button id="btnPalette" class="restore">恢复 Apple 标准配色 · Restore Apple palette</button></div>
+    </div>
+
+    <div class="note">
+      <b>配色标准 · Colour standard</b><br>
+      Apple HIG 只用语义色表达状态：<b>靛蓝 Indigo</b> 等待/聚焦（3·2·1 准备）、<b>绿 Green</b> 进行顺利（演讲中）、
+      <b>蓝 Blue</b> 中性延续（加时/问答）、<b>橙 Orange</b> 注意收尾、<b>红 Red</b> 停止超时。切换浅色/深色会自动换成 Apple 的浅色版色值。
+      <br>
+      Apple maps colour to meaning, not decoration: indigo = waiting/focus, green = on track, blue = neutral
+      continuation, orange = wrap up, red = stop. Light and dark each use their own Apple values.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- Apple system colours, dark & light variants ---------- */
+  const APPLE = {
+    dark:  { prep:"#5E5CE6", main:"#30D158", qa:"#0A84FF", warn:"#FF9F0A", done:"#FF453A" },
+    light: { prep:"#5856D6", main:"#34C759", qa:"#007AFF", warn:"#FF9500", done:"#FF3B30" }
+  };
+  const DEFAULT_OVERRIDES = { prep:null, main:null, qa:null, warn:null, done:null };
+  const DEFAULTS = { theme:"auto", prep:true, mainMins:15, extraMins:5, tick:false, volume:0.7,
+                     prepBg:"solid", otherBg:"soft",
+                     overrides: structuredClone(DEFAULT_OVERRIDES) };
+
+  /* ---------- settings persistence ---------- */
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem("contestTimer.v2");
+      if (!raw) return structuredClone(DEFAULTS);
+      const s = Object.assign(structuredClone(DEFAULTS), JSON.parse(raw));
+      s.overrides = Object.assign(structuredClone(DEFAULT_OVERRIDES), s.overrides || {});
+      return s;
+    } catch (e) { return structuredClone(DEFAULTS); }
+  }
+  const S = loadSettings();
+  const save = () => { try { localStorage.setItem("contestTimer.v2", JSON.stringify(S)); } catch (e) {} };
+
+  const q = new URLSearchParams(location.search);
+  if (q.has("p1")) S.mainMins = Math.max(0.1, parseFloat(q.get("p1")));
+  if (q.has("p2")) S.extraMins = Math.max(0, parseFloat(q.get("p2")));
+  if (q.get("theme")) S.theme = q.get("theme");
+  if (q.get("prep") === "0") S.prep = false;
+
+  /* ---------- colour utils ---------- */
+  function hx(h) {
+    h = String(h).replace("#","").trim();
+    if (h.length === 3) h = h.split("").map(c => c+c).join("");
+    return [parseInt(h.slice(0,2),16) || 0, parseInt(h.slice(2,4),16) || 0, parseInt(h.slice(4,6),16) || 0];
+  }
+  const rgba = (hex, a) => { const [r,g,b] = hx(hex); return `rgba(${r},${g},${b},${a.toFixed(3)})`; };
+  const mix = (base, col, a) => base.map((b, i) => Math.round(col[i] * a + b * (1 - a)));
+
+  /* ---------- theme ---------- */
+  const mq = window.matchMedia("(prefers-color-scheme: light)");
+  const el = {
+    body: document.body,
+    zh: document.getElementById("phaseZh"), en: document.getElementById("phaseEn"),
+    clock: document.getElementById("clock"), fill: document.getElementById("fill"),
+    next: document.getElementById("next"), wash: document.getElementById("wash")
+  };
+  function effectiveTheme() { return S.theme === "auto" ? (mq.matches ? "light" : "dark") : S.theme; }
+
+  function applyTheme() {
+    const t = effectiveTheme();
+    el.body.dataset.theme = t;
+    document.documentElement.style.colorScheme = t;
+    document.querySelectorAll("#segTheme button").forEach(b => b.classList.toggle("on", b.dataset.theme === S.theme));
+    paintPalette();
+  }
+  mq.addEventListener("change", () => { if (S.theme === "auto") applyTheme(); });
+
+  function phaseColors() {
+    const t = effectiveTheme(), out = {};
+    for (const k of ["prep","main","qa","warn","done"]) out[k] = S.overrides[k] || APPLE[t][k];
+    return out;
+  }
+
+  function paintPalette() {
+    const p = phaseColors(), s = el.body.style;
+    s.setProperty("--c-prep", p.prep);
+    s.setProperty("--c-main", p.main);
+    s.setProperty("--c-qa",   p.qa);
+    s.setProperty("--c-warn", p.warn);
+    s.setProperty("--c-done", p.done);
+    document.getElementById("cPrep").value = p.prep;
+    document.getElementById("cMain").value = p.main;
+    document.getElementById("cQa").value   = p.qa;
+    document.getElementById("cWarn").value = p.warn;
+    document.getElementById("cDone").value = p.done;
+    paintField(true);
+  }
+
+  /* ---- phase backdrop -------------------------------------------------
+     "off"   = plain black / #F2F2F7 field, digits in the phase colour
+     "soft"  = dimmed tint of the phase colour behind the digits
+     "solid" = the whole screen becomes the phase colour (Apple keynote style) */
+  const MIX = { solidDark: 0.90, solidLight: 0.86, softDark: 0.34, softLight: 0.26 };
+  const luminance = (hex) => {
+    const [r,g,b] = hx(hex).map(v => { v /= 255; return v <= .03928 ? v/12.92 : ((v+.055)/1.055)**2.4; });
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  };
+  let lastField = "";
+  function paintField(force) {
+    const seg = segs[idx] || segs[0];
+    if (!seg) return;
+    const keyName = seg.prep ? "prep" : seg.state === "done" ? "done" : seg.state;
+    const col = phaseColors()[keyName] || "#000000";
+    const mode = seg.prep ? S.prepBg : S.otherBg;
+    const light = effectiveTheme() === "light";
+
+    // base field: theme background mixed toward the phase colour
+    let field, fieldFg;
+    if (mode === "solid") {
+      const a = light ? MIX.solidLight : MIX.solidDark;
+      field = mix(light ? [242,242,247] : [0,0,0], hx(col), a);
+      fieldFg = luminance(field) > 0.45 ? "#000000" : "#FFFFFF";
+    } else if (mode === "soft") {
+      const a = light ? MIX.softLight : MIX.softDark;
+      field = mix(light ? [242,242,247] : [0,0,0], hx(col), a);
+      fieldFg = light ? "#000000" : "#FFFFFF";
+    } else {
+      field = light ? [242,242,247] : [0,0,0];
+      fieldFg = light ? "#000000" : "#FFFFFF";
+    }
+
+    // during 3-2-1 the field deepens as the count falls 3 → 1 (only when painted)
+    if (seg.prep && mode !== "off" && running) {
+      const remain = Math.max(0, seg.secs - (performance.now() - segStart) / 1000);
+      const done = 1 - remain / seg.secs;
+      const a = mode === "solid"
+        ? (light ? MIX.solidLight * (0.55 + done * 0.45) : MIX.solidDark * (0.60 + done * 0.40))
+        : (light ? MIX.softLight * (0.45 + done * 0.55) : MIX.softDark * (0.45 + done * 0.55));
+      field = mix(light ? [242,242,247] : [0,0,0], hx(col), a);
+      if (mode === "solid") fieldFg = luminance(field) > 0.45 ? "#000000" : "#FFFFFF";
+    }
+
+    const key = field.join(",") + "|" + fieldFg + "|" + (mode === "off" ? "off" : "on");
+    if (!force && key === lastField) return;
+    lastField = key;
+    const s = el.body.style;
+    s.setProperty("--field", `rgb(${field[0]}, ${field[1]}, ${field[2]})`);
+    s.setProperty("--prep-fg", seg.prep ? fieldFg : (light ? APPLE.light.prep : APPLE.dark.prep));
+    s.setProperty("--field-fg", fieldFg);
+    el.body.classList.toggle("solid-field", mode === "solid");
+    el.wash.style.opacity = "0";        // radial wash retired; the field is the backdrop
+  }
+
+  /* ---------- audio ---------- */
+  let ac = null, master = null;
+  function audio() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = S.volume;
+      master.connect(ac.destination);
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function applyVolume() {
+    // set .value directly: setTargetAtTime smoothing does not advance in a
+    // suspended AudioContext (no output device), which left the gain stuck
+    if (master && ac) master.gain.value = S.volume;
+  }
+  function bell(offset, freq, dur, gain) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime + offset;
+    [[1, 1], [2, .32], [2.76, .16], [5.4, .07]].forEach(([mult, amp]) => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "sine"; o.frequency.value = freq * mult;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(amp * (gain || 0.34), t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(master);
+      o.start(t); o.stop(t + dur + 0.05);
+    });
+  }
+  function beep(offset, freq, dur, amp) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime + offset;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(amp || 0.16, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.12));
+    o.connect(g).connect(master);
+    o.start(t); o.stop(t + (dur || 0.12) + 0.05);
+  }
+  const TING = (off) => bell(off || 0, 880, 1.9);        // single ding (台式服务铃)
+  const TING_TING = () => { TING(0); TING(0.42); };      // double ding
+  const GO = () => { beep(0, 988, .14, .2); beep(.14, 1319, .2, .18); };
+  const cueLog = [];
+  const logCue = (name) => cueLog.push({ name, at: Math.round(performance.now()) });
+
+  /* ---------- timeline ---------- */
+  let segs = [], idx = 0, running = false, segStart = 0, lastShown = null, lastPrepInt = null,
+      pausedRem = null, timerId = null;
+
+  function buildSegments() {
+    segs = [];
+    if (S.prep) segs.push({ state:"prep", zh:"准备", en:"GET READY", secs:3, prep:true });
+    segs.push({ state:"main", zh:"演讲进行中", en:"PRESENTATION", secs:Math.round(S.mainMins * 60) });
+    if (S.extraMins > 0) segs.push({ state:"qa", zh:"问答 / 加时", en:"Q & A", secs:Math.round(S.extraMins * 60) });
+  }
+  const mmss = (s) => {
+    s = Math.max(0, s);
+    return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(Math.floor(s%60)).padStart(2,"0");
+  };
+
+  function render(rem) {
+    const seg = segs[idx]; if (!seg) return;
+    const isPrep = !!seg.prep;
+    const text = isPrep ? String(Math.max(0, Math.ceil(rem))) : mmss(rem);
+    if (text !== lastShown) { el.clock.textContent = text; lastShown = text; }
+    if (el.body.dataset.state !== seg.state) el.body.dataset.state = seg.state;
+    el.zh.textContent = seg.zh;
+    el.en.textContent = seg.en;
+    el.fill.style.width = (Math.max(0, Math.min(1, rem / seg.secs)) * 100).toFixed(2) + "%";
+    el.clock.classList.toggle("warn",  !isPrep && rem <= Math.max(60, seg.secs * 0.12) && rem > 10);
+    el.clock.classList.toggle("danger", !isPrep && rem <= 10 && rem > 0);
+    const nxt = segs[idx + 1];
+    el.next.textContent = nxt ? ("接下来 NEXT · " + nxt.zh + " " + mmss(nxt.secs)) : "";
+    if (isPrep) paintField();          // animate the wash while counting 3-2-1
+  }
+
+  function soundForDone(i) {
+    const prev = segs[i - 1]; if (!prev) return;
+    if (prev.prep)               { logCue("go");        GO(); }
+    else if (prev.state === "main") { logCue("ting");      TING(); }
+    else if (prev.state === "qa")   { logCue("ting-ting"); TING_TING(); }
+  }
+
+  function flash() {
+    const f = document.getElementById("flash");
+    f.style.transition = "none"; f.style.opacity = ".40";
+    requestAnimationFrame(() => { f.style.transition = "opacity .45s"; f.style.opacity = "0"; });
+  }
+
+  function finish() {
+    running = false; stopLoop(); pausedRem = null;
+    idx = segs.length - 1;
+    el.body.dataset.state = "done";
+    el.zh.textContent = "结束"; el.en.textContent = "TIME";
+    el.clock.textContent = "00:00";
+    el.clock.classList.remove("warn"); el.clock.classList.add("danger");
+    el.fill.style.width = "0%";
+    el.next.textContent = "请下一位选手准备 · Next speaker, please";
+    setBtn("done"); paintField(true);
+  }
+
+  function tick() {
+    if (!running) return;
+    const seg = segs[idx], now = performance.now();
+    let rem = seg.secs - (now - segStart) / 1000;
+
+    if (seg.prep) {
+      const n = Math.max(1, Math.ceil(rem));
+      if (n !== lastPrepInt && n <= 3) { beep(0, 640, .1, .14); lastPrepInt = n; }
+    }
+    while (rem <= 0) {
+      segStart += seg.secs * 1000;
+      const nextIdx = idx + 1;
+      if (nextIdx >= segs.length) { render(0); soundForDone(nextIdx); finish(); return; }
+      idx = nextIdx;
+      soundForDone(idx); flash();
+      rem = segs[idx].secs - (performance.now() - segStart) / 1000;
+    }
+    if (S.tick && !segs[idx].prep && rem <= 30 && rem > 0) {
+      const n = Math.ceil(rem);
+      if (n !== el._tickN) { el._tickN = n; beep(0, 1200, .05, .1); }
+    }
+    render(rem);
+  }
+
+  /* interval not rAF: background tabs / projectors would freeze a rAF loop */
+  function startLoop() { if (!timerId) timerId = setInterval(tick, 100); }
+  function stopLoop()  { clearInterval(timerId); timerId = null; }
+
+  /* ---------- transport ---------- */
+  const btnStart = document.getElementById("btnStart");
+  const setBtn = (m) => { btnStart.textContent = m === "running" ? "暂停 PAUSE" : m === "done" ? "再来一次 AGAIN" : "开始 START"; };
+
+  function startOrPause() {
+    audio();
+    if (el.body.dataset.state === "done") { reset(); return startOrPause(); }
+    if (running) {
+      running = false;
+      pausedRem = segs[idx].secs - (performance.now() - segStart) / 1000;
+      stopLoop(); setBtn("idle"); return;
+    }
+    if (idx === 0 && segStart === 0) {
+      buildSegments(); segStart = performance.now(); lastPrepInt = null;
+    } else if (pausedRem != null) {
+      segStart = performance.now() - (segs[idx].secs - pausedRem) * 1000; pausedRem = null;
+    }
+    running = true; setBtn("running"); startLoop();
+  }
+
+  function reset() {
+    running = false; pausedRem = null; segStart = 0; idx = 0;
+    lastShown = null; lastPrepInt = null; el._tickN = null;
+    stopLoop(); cueLog.length = 0;
+    buildSegments();
+    el.clock.classList.remove("warn","danger");
+    setBtn("idle");
+    el.body.dataset.state = segs[0].state;
+    render(segs[0].secs);
+    paintField(true);
+  }
+
+  function toggleFull() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    else document.exitFullscreen();
+  }
+
+  /* ---------- settings sheet ---------- */
+  const sheet = document.getElementById("sheet");
+  function openSheet(open) {
+    const on = open !== false;
+    sheet.classList.toggle("open", on);
+    el.body.classList.toggle("settings-open", on);
+    if (on) { audio(); syncControls(); }
+  }
+  document.getElementById("btnSettings").addEventListener("click", () => { audio(); openSheet(true); });
+  document.getElementById("sheetClose").addEventListener("click", () => openSheet(false));
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) openSheet(false); });
+
+  function syncControls() {
+    document.getElementById("swPrep").checked  = !!S.prep;
+    document.getElementById("swTick").checked  = !!S.tick;
+    document.getElementById("setMain").value   = S.mainMins;
+    document.getElementById("setExtra").value  = S.extraMins;
+    document.getElementById("vol").value       = Math.round(S.volume * 100);
+    document.getElementById("volNum").textContent = Math.round(S.volume * 100);
+    document.querySelectorAll("#segTheme button").forEach(b => b.classList.toggle("on", b.dataset.theme === S.theme));
+    document.querySelectorAll("#segPrepBg button").forEach(b => b.classList.toggle("on", b.dataset.bg === S.prepBg));
+    document.querySelectorAll("#segOtherBg button").forEach(b => b.classList.toggle("on", b.dataset.bg === S.otherBg));
+  }
+
+  document.querySelectorAll("#segTheme button").forEach(b => b.addEventListener("click", () => {
+    S.theme = b.dataset.theme; save(); applyTheme();
+  }));
+  function wireBgSeg(id, key) {
+    document.querySelectorAll("#" + id + " button").forEach(b => b.addEventListener("click", () => {
+      S[key] = b.dataset.bg; save(); syncControls(); paintField(true);
+    }));
+  }
+  wireBgSeg("segPrepBg", "prepBg");
+  wireBgSeg("segOtherBg", "otherBg");
+  document.getElementById("swPrep").addEventListener("change", (e) => { S.prep = e.target.checked; save(); reset(); });
+  document.getElementById("swTick").addEventListener("change", (e) => { S.tick = e.target.checked; save(); });
+  document.getElementById("setMain").addEventListener("change", (e) => {
+    S.mainMins = Math.max(0.1, parseFloat(e.target.value) || 15); save(); reset();
+  });
+  document.getElementById("setExtra").addEventListener("change", (e) => {
+    S.extraMins = Math.max(0, parseFloat(e.target.value) || 0); save(); reset();
+  });
+  document.getElementById("vol").addEventListener("input", (e) => {
+    S.volume = Math.max(0, Math.min(1, e.target.value / 100));
+    document.getElementById("volNum").textContent = e.target.value;
+    audio(); applyVolume(); save();
+  });
+  document.querySelectorAll("[data-test]").forEach(b => b.addEventListener("click", () => {
+    audio(); applyVolume();
+    if (b.dataset.test === "ting") TING(0);
+    else if (b.dataset.test === "tingting") TING_TING();
+    else GO();
+  }));
+
+  const colourInputs = { cPrep:"prep", cMain:"main", cQa:"qa", cWarn:"warn", cDone:"done" };
+  Object.entries(colourInputs).forEach(([id, key]) => {
+    document.getElementById(id).addEventListener("input", (e) => {
+      S.overrides[key] = e.target.value.toUpperCase(); save(); paintPalette();
+    });
+  });
+  document.getElementById("btnPalette").addEventListener("click", () => {
+    S.overrides = structuredClone(DEFAULT_OVERRIDES); save(); paintPalette();
+  });
+
+  /* ---------- input ---------- */
+  btnStart.addEventListener("click", startOrPause);
+  document.getElementById("btnReset").addEventListener("click", reset);
+  document.getElementById("btnFull").addEventListener("click", toggleFull);
+
+  document.addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (t && t.matches && t.matches("input,select,textarea")) return;
+    const k = e.key.toLowerCase();
+    if (e.code === "Space" || e.key === "Enter") { e.preventDefault(); startOrPause(); }
+    else if (k === "r") reset();
+    else if (k === "f") toggleFull();
+    else if (k === "s") openSheet(!sheet.classList.contains("open"));
+    else if (e.key === "Escape") openSheet(false);
+    else if (k === "h") el.body.classList.toggle("show-ui");
+  });
+
+  let idleT;
+  document.addEventListener("mousemove", () => {
+    el.body.classList.add("show-ui");
+    clearTimeout(idleT);
+    idleT = setTimeout(() => el.body.classList.remove("show-ui"), 2600);
+  });
+
+  /* ---------- boot ---------- */
+  window.contestTimer = {
+    startOrPause, reset, openSheet, toggleFull,
+    setVolume: (v) => { S.volume = Math.max(0, Math.min(1, v)); save(); syncControls(); audio(); applyVolume(); },
+    setTheme:   (t) => { S.theme = t; save(); applyTheme(); },
+    setMain:    (m) => { S.mainMins = m; save(); syncControls(); reset(); },
+    setExtra:   (m) => { S.extraMins = m; save(); syncControls(); reset(); },
+    setBackdrop: (which, mode) => { S[which === "prep" ? "prepBg" : "otherBg"] = mode; save(); syncControls(); paintField(true); },
+    segs:   () => segs,
+    state:  () => ({ running, idx, pausedRem, theme: el.body.dataset.theme, settings: S }),
+    cues:   () => cueLog.slice(),
+    gain:   () => (master ? Number(master.gain.value.toFixed(3)) : null),
+    palettes: APPLE
+  };
+  syncControls();
+  applyTheme();
+  reset();
+})();
+</script>
+</body>
+</html>

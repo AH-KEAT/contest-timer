@@ -1,0 +1,99 @@
+# Contest Timer · 比赛计时器
+
+Full-screen presentation / speech-competition timer with the exact sequence you asked for, now with a settings sheet, light/dark themes, volume control and phase-coloured backgrounds in Apple's system palette.
+全屏演讲 / 比赛计时器，完全按照你要求的时间流程；已加入「设置」面板、浅色/深色主题、音量控制，以及参照 Apple 系统色的阶段背景色。
+
+## Sequence · 时间流程
+
+| Step · 步骤 | On screen · 屏幕显示 | Sound · 音效 |
+|---|---|---|
+| Get ready · 准备 | huge **3 → 2 → 1**, indigo wash · 靛蓝背景 | short beep on each count · 每一下短哔 |
+| Presentation · 演讲 | **15:00** green countdown · 绿色倒数 | — |
+| 15 min reached · 15 分钟到 | switch to Q&A / overtime, blue · 切换蓝色加时 | **ting** (single bell · 单响铃) |
+| Overtime · 加时 5 分钟 | **05:00** blue countdown · 蓝色倒数 | — |
+| 5 min reached · 加时结束 | red "结束 / TIME" · 红色结束 | **ting ting** (double bell · 双响铃) |
+
+## How to use · 怎么用
+
+1. Double-click `contest-timer.html` — opens in your browser, no internet needed.
+   双击 `contest-timer.html` 用浏览器打开，无需联网。
+2. Click **开始 START** (or `Space`) when the contestant walks up.
+   选手上台时点「开始 START」或按空格键。
+3. Press `F` for full-screen so the speaker can read it across the room.
+   按 `F` 全屏，台上的人从远处也看得清。
+
+Shortcuts · 快捷键: `Space` start/pause · `R` reset · `F` fullscreen · **`S` settings** · `Esc` close settings
+
+## Settings sheet · 设置面板
+
+Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser and survives a reload.
+点右下角 **⚙︎** 或按 `S`。所有设置保存在浏览器里，重开仍然记住。
+
+| Section · 分区 | What you can change · 可调项 |
+|---|---|
+| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 |
+| 计时 Timing | 3-2-1 on/off · 主环节分钟 · 加时分钟 · last-30s tick 最后30秒滴答 |
+| 声音 Sound | **Volume 音量 slider 0–100** + test buttons 试听：叮 / 叮叮 / 哔 |
+| 阶段颜色 Phase colours | 5 colour pickers + 恢复 Apple 标准配色 Restore Apple palette |
+
+URL params still work and override the saved settings · 网址参数仍然有效，会覆盖已保存的设置:
+
+```
+contest-timer.html?p1=12&p2=3    # 12 min speech + 3 min Q&A
+contest-timer.html?prep=0        # skip the 3-2-1 countdown 跳过倒数
+contest-timer.html?theme=light   # force light theme 强制浅色
+```
+
+## Theme & colour standard · 主题与配色标准
+
+Both themes use Apple's own light and dark system values, not one palette dimmed.
+两套主题各用 Apple 自己的浅色／深色系统色值，不是把一套颜色调暗。
+
+| Phase · 阶段 | Apple colour · Apple 系统色 | Dark · 深色 | Light · 浅色 | Meaning · 含义 |
+|---|---|---|---|---|
+| 3-2-1 准备 | **Indigo 靛蓝** | `#5E5CE6` | `#5856D6` | waiting / focus 等待、聚焦 |
+| 演讲中 | **Green 绿** | `#30D158` | `#34C759` | on track 进行顺利 |
+| 加时/问答 | **Blue 蓝** | `#0A84FF` | `#007AFF` | neutral continuation 中性延续 |
+| 即将结束 | **Orange 橙** | `#FF9F0A` | `#FF9500` | wrap up 注意收尾 |
+| 结束/超时 | **Red 红** | `#FF453A` | `#FF3B30` | stop 停止 |
+
+Why these and not something brighter · 为什么用这套而不是更亮的颜色:
+
+- Apple's HIG maps colour to **semantic state**, never decoration — the same red means "stop" everywhere in iOS, so judges and speakers read it without a legend.
+  Apple HIG 用颜色表达**语义状态**，不做装饰 — 同一个红在 iOS 里永远代表「停止」，评委和选手不用看图例就懂。
+- The 3-2-1 uses **indigo**, not red or green, because it is neither "go" nor "stop" — it is anticipation, which is exactly what iOS uses indigo for (e.g. focus states, Siri waiting).
+  3-2-1 用**靛蓝**而不是红/绿，因为那既不是「开始」也不是「停」— 那是「预备」，正是 iOS 用靛蓝的地方。
+- Each phase also paints a very low-opacity **radial wash** into the background (about 10–28 % alpha), so the room feels the phase change from the back row without the screen becoming garish. During 3-2-1 the wash brightens as the count drops 3 → 1.
+  每个阶段还会在背景叠一层很淡的**径向光晕**（约 10–28% 透明度），后排也能感觉到换阶段，但画面不会花。3-2-1 期间光晕随 3→1 逐渐变亮。
+- Digits turn **orange** at the last ~12 % and **red** in the last 10 seconds, so the speaker gets a warning before the bell.
+  数字在最后约 12% 变**橙**、最后 10 秒变**红**，让选手在铃响前有预警。
+
+Custom colours you pick apply to both themes · 自选颜色在两种主题下都生效.
+
+## Sound notes · 声音注意
+
+- The bell is synthesized in the browser (Web Audio) — no audio file, works offline.
+  铃声由浏览器实时合成（Web Audio），不需要音频文件，离线可用。
+- Browsers only allow sound after a user gesture — **click START or the settings gear once before the event** to unlock audio, then press `R`.
+  浏览器要求先有一次点击才允许放声：活动开始前先点一次 START 或齿轮解锁音频，再按 R 重置。
+- Use **音量 Volume** in settings (or the 试听 test buttons) to check loudness before the contest; 70 is the default.
+  比赛前用设置里的**音量**滑杆或**试听**按钮确认响度，预设 70。
+- Also check the tab isn't muted (speaker icon on the tab) and the machine volume is up.
+  另外确认标签页没被静音（看标签页上的喇叭图标）、电脑音量已开。
+
+---
+
+# Existing websites / videos if you prefer not to use this file
+# 如果你不想用这个文件，可以用现成网站 / 视频
+
+| Site · 网站 | Good for · 适合 | Link |
+|---|---|---|
+| 演讲计时器（omikuji.dev） | Closest match: 3 bells (1 ding / 2 dings / 3 dings), speech + Q&A presets, green→yellow→red, Chinese UI. 最接近你要求的：三遍「叮」铃声、发言+提问预设、中文界面 | https://tools.omikuji.dev/zh-cn/presentation-timer/ |
+| MinuteBell Speech Timer | Toastmasters-style green/yellow/red lights, overtime counter, full screen. Toastmasters 红绿灯计时，超时计数 | https://www.minutebell.com/speech-timer |
+| TimerWeb Speech Timer | Green/yellow/red + chimes on/off, stage mode. 红绿灯＋可选铃声 | https://timerweb.com/speech-timer |
+| Tickline Presentation Timer | Giant projector-friendly digits, voice cues (5 min / 1 min / 30 s). 超大数字＋语音提示 | https://tickline.app/presentation-timer |
+| timer.media | Plain 15-minute preset, no frills. 最简 15 分钟倒数 | https://timer.media/ |
+| YouTube 15-min countdown | Ready-made video with ticking + end chime (play it full screen). 现成视频，带滴答与结束铃 | https://www.youtube.com/watch?v=AQgwWZESsbg |
+
+Note: none of the free sites do the exact "3-2-1 → 15 min → ting → 5 min → ting ting" chain in one run — that's why `contest-timer.html` exists.
+注意：这些免费网站没有一个能一次跑完「3-2-1 → 15 分钟 → 叮 → 5 分钟 → 叮叮」的完整流程，所以做了 `contest-timer.html`。
