@@ -11,7 +11,7 @@ Open that URL on the projector laptop — nothing to install.
 
 | Step · 步骤 | On screen · 屏幕显示 | Sound · 音效 |
 |---|---|---|
-| Get ready · 准备 | huge **3 → 2 → 1**, indigo wash · 靛蓝背景 | short beep on each count · 每一下短哔 |
+| Get ready · 准备 | huge **3 → 2 → 1** (any length 1–10 s), indigo wash · 靛蓝背景 | short beep, or the number spoken · 每一下短哔或念出数字 |
 | Presentation · 演讲 | **15:00** green countdown · 绿色倒数 | — |
 | 15 min reached · 15 分钟到 | switch to Q&A / overtime, blue · 切换蓝色加时 | **ting** (single bell · 单响铃) |
 | Overtime · 加时 5 分钟 | **05:00** blue countdown · 蓝色倒数 | — |
@@ -71,6 +71,27 @@ open index.html          # macOS
 
 Shortcuts · 快捷键: `Space` start/pause · `R` reset · `F` fullscreen · **`S` settings** · `Esc` close settings
 
+## Per-section countdown · 每段自己的倒数
+
+Any section can carry its own countdown, not just the first one. Put `5` in the **⏱** box on
+that section and it counts 5 → 1 right before the section starts — same voice, same blur,
+same red→amber→green wash as the global countdown.
+任何一段都可以有自己的倒数，不只是第一段。在该段的 **⏱** 格填 `5`，进入这一段前就会从 5 数到 1，
+用的语音、换色和全场倒数完全一样。
+
+- The **merged (全场) clock** and the bell marks ignore countdown time, so a bell set to
+  "after 300 s" still rings 300 s of *speaking*, not 300 s of wall clock.
+  **合并全场**的时钟和铃声刻度不计倒数时间，「开始后 300 秒」响的就是演讲 300 秒，不是墙上 300 秒。
+- The global countdown and a section countdown can both be on; the section one runs after the global one.
+  全场倒数和每段倒数可以同时开，先跑全场的，再跑该段的。
+
+## One language on screen · 界面只显示一种语言
+
+Pick 中文 or English in **设置 → 界面语言**; everything the screen shows follows that choice,
+including section titles (each section stores both a Chinese and an English name).
+在 **设置 → 界面语言** 选中文或 English，屏幕上所有文字都跟着变，包括段落标题
+（每段同时保存中文名和英文名）。
+
 ## Settings sheet · 设置面板
 
 Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser and survives a reload.
@@ -78,10 +99,12 @@ Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser
 
 | Section · 分区 | What you can change · 可调项 |
 |---|---|
-| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 |
-| 计时 Timing | 准备倒数 1–10 秒 · 主环节分钟 · 加时分钟 · last-30s tick 最后30秒滴答 |
+| 语言 Language | **界面只显示一种语言** · one language on screen — 中文 / English，切换后题目、按钮、提示全部跟着变 |
+| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 · 背景呼吸 breathing wash |
+| 计时 Timing | 全场准备倒数 1–10 秒 · **每段各自倒数 0–30 秒** · last-30s tick 最后30秒滴答 |
 | 语音 Voice | 语音倒数 on/off · English / 中文 — speaks **every** number of the countdown (5 → "five, four, three, two, one") · 每个数字都念出来 |
 | 声音 Sound | **Volume 音量 slider 0–100** + test buttons 试听：叮 / 叮叮 / 哔 |
+| 分段 SECTIONS | 名称（中/英）· 分钟+秒 · 颜色 · 铃声时机与次数 · **每段倒数 0–30 秒** |
 | 阶段颜色 Phase colours | 5 colour pickers + 恢复 Apple 标准配色 Restore Apple palette |
 
 URL params still work and override the saved settings · 网址参数仍然有效，会覆盖已保存的设置:
