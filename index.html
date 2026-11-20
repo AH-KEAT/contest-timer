@@ -46,9 +46,8 @@
   #phaseEn{font-size:clamp(10px,1.4vh,18px);font-weight:500;letter-spacing:.24em;color:var(--field-fg);opacity:.72;text-transform:uppercase;transition:color .3s}
   #clock{font-size:clamp(72px,23vh,310px);font-weight:700;line-height:.9;letter-spacing:-.025em;
          font-variant-numeric:tabular-nums;transition:color .3s}
-  /* waiting for a bell to finish: no digit, or it reads as a count that is not
-     counting. Visibility, not display — the line box must not collapse. */
-  body.holding #clock{visibility:hidden}
+  /* waiting for a bell to finish: the digit is frozen, not hidden — a blank
+     clock for two seconds reads as a broken timer. Keep its colour too. */
   #bar{position:relative;width:min(78vw,1100px);height:clamp(4px,.8vh,9px);border-radius:99px;
        background:var(--track);overflow:visible;margin-top:clamp(14px,2.4vh,26px);
        margin-bottom:clamp(16px,2.6vh,30px)}
@@ -878,7 +877,7 @@
   const elapsedNow = () => running ? (performance.now() - startedAt) / 1000 : pausedElapsed;
 
   /* ---------- backdrop ---------- */
-  let lastField = "", lastColourKey = "";
+  let lastField = "";
   function paintField(force, item, prepCount) {
     item = item || currentItem(elapsedNow());
     if (!item) return;
@@ -893,15 +892,10 @@
       // prepCount == null means the countdown has not begun yet (a silent head,
       // waiting for a bell to finish) — keep the previous phase's colour rather
       // than flashing the indigo "about to count" wash before anything counts.
-      if (prepCount == null) {
-        colourKey = lastColourKey || item.color;
-      } else {
-        const span = Math.max(1, item.dur);
-        colourKey = prepCount <= 1 ? "green"
-                  : prepCount <= Math.max(2, Math.ceil(span / 3)) ? "orange" : "red";
-      }
+      const span = Math.max(1, item.dur);
+      const n = prepCount == null ? span : prepCount;
+      colourKey = n <= 1 ? "green" : n <= Math.max(2, Math.ceil(span / 3)) ? "orange" : "red";
     }
-    lastColourKey = colourKey;
     const col = hx(palette()[colourKey] || "#000000");
     const mode = S.backdrop;
 
@@ -1044,7 +1038,8 @@
     const item = currentItem(e);
     if (!item) return;
 
-    // for a prep this is the counted window, so the silent head shows no digit
+    // for a prep this is the counted window; during a hold the last line below
+    // freezes the number at the value it is about to count down from
     const remaining = Math.max(0, itemEnd(item) - e);
     const isPrep = item.kind === "prep";
     const counting = isPrep && e >= prepFrom(item);
@@ -1054,11 +1049,19 @@
     const sEl = sessionElapsed(e);
     const shown = session ? Math.max(0, sDur - sEl) : remaining;
 
-    // In session display the prep is not part of the session, so before the
-    // run starts the honest number is the session total, not "3".
-    const showTotal = session && !running && !finished && e === 0;
+    // Before the run starts, the big number is a PREVIEW of what happens first.
+    // If the run opens with a countdown, that countdown is the thing about to
+    // happen — showing the session total instead hid it, so you could not see
+    // that pressing START would count down at all. The total moves up into the
+    // caption rather than disappearing.
+    const idle = !running && !finished && e === 0;
+    const showTotal = session && idle && !isPrep;
     const text = showTotal ? mmss(sDur)
-               : isPrep ? (counting ? String(Math.max(1, Math.ceil(remaining))) : "")
+               // A blank clock for the length of a bell looks like a broken timer.
+               // Freeze the first number it will count from instead, so the digit
+               // is always on screen and simply starts moving when the bell ends.
+               : isPrep ? String(counting ? Math.max(1, Math.ceil(remaining))
+                                          : Math.max(1, item.dur))
                : mmss(shown);
     if (el.clock.textContent !== text) el.clock.textContent = text;
     el.body.classList.toggle("holding", isPrep && !counting);
@@ -1067,7 +1070,10 @@
     // big number that is neither the section nor the total is a real hazard.
     el.caption.textContent = session && !isPrep
       ? L("session")
-      : (session && isPrep ? L("ready") : "");
+      : (session && isPrep
+          ? (idle ? L("session") + " " + mmss(sDur)   // total, while the countdown previews
+                  : L("ready"))
+          : "");
 
     // ONE language on the projector. Each section already stores both names, so
     // the language switch picks one instead of inventing a translation; a
@@ -1104,7 +1110,7 @@
         : "";
     }
 
-    paintField(false, item, counting ? Math.ceil(remaining) : null);
+    paintField(false, item, isPrep ? Math.ceil(remaining) || item.dur : null);
     paintMarkers(item);
   }
 

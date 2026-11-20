@@ -85,6 +85,14 @@ same red→amber→green wash as the global countdown.
 - The global countdown and a section countdown can both be on; the section one runs after the global one.
   全场倒数和每段倒数可以同时开，先跑全场的，再跑该段的。
 
+## Start screen · 开始画面
+
+Before you press START, the big digit previews what will happen first: if the run opens with a
+countdown it shows that number (so you can see a countdown is coming), and the session total
+moves up into the caption. With no countdown it shows the section length as before.
+按 START 之前，大数字就是接下来第一件事的预览：如果开场有倒数，就显示那个数字
+（这样看得出会先倒数），全场总时间移到上面的小字。没有倒数时和以前一样显示本段时长。
+
 ## Bell first · 铃声先响完
 
 A countdown used to talk straight over the bell. With this on (default), if a bell rings right
@@ -93,6 +101,9 @@ colour unchanged, until the bell has finished — then it counts 5, 4, 3, 2, 1 a
 倒数以前会盖住铃声。打开这一项（默认开）后：如果倒数开始前正好有铃声，倒数会先让路 —
 数字留空、不发声、背景颜色不变，等铃声结束才开始数 5、4、3、2、1。
 
+- The digit **freezes** on the number it is about to count from instead of going blank —
+  an empty clock for two seconds reads as a broken timer.
+  数字会**停在**将要数的那个数上，而不是变空白 —— 空白的时钟停两秒看起来像坏了。
 - Waits for **one** bell only, at most **3 s**, so a mis-placed bell can't stall the run.
   只会等**一次**铃声，最多 **3 秒**，所以放错的铃声不会拖住流程。
 - Works for both the global countdown and every per-section countdown.
