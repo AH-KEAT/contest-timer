@@ -85,6 +85,29 @@ same red→amber→green wash as the global countdown.
 - The global countdown and a section countdown can both be on; the section one runs after the global one.
   全场倒数和每段倒数可以同时开，先跑全场的，再跑该段的。
 
+## Bell first · 铃声先响完
+
+A countdown used to talk straight over the bell. With this on (default), if a bell rings right
+before a countdown starts, the countdown holds: the digit blank, nothing spoken, the phase
+colour unchanged, until the bell has finished — then it counts 5, 4, 3, 2, 1 as usual.
+倒数以前会盖住铃声。打开这一项（默认开）后：如果倒数开始前正好有铃声，倒数会先让路 —
+数字留空、不发声、背景颜色不变，等铃声结束才开始数 5、4、3、2、1。
+
+- Waits for **one** bell only, at most **3 s**, so a mis-placed bell can't stall the run.
+  只会等**一次**铃声，最多 **3 秒**，所以放错的铃声不会拖住流程。
+- Works for both the global countdown and every per-section countdown.
+  全场倒数和每段倒数都适用。
+- Turn it off in **设置 → 铃声先响完** to get the old overlapping behaviour.
+  在 **设置 → 铃声先响完** 关掉即恢复以前的重叠行为。
+
+## End background · 结束背景
+
+`设置 → 结束背景`: **灰 Grey** (neutral, the default), **红 Red**, **靛蓝 Indigo**, **绿 Green**.
+It is mixed with the same alphas as every other phase background, so it follows 背景 (backdrop)
+soft/solid/off and both themes.
+`设置 → 结束背景`: **灰**（中性，预设）、**红**、**靛蓝**、**绿**。
+和所有阶段背景用同一套透明度混合，所以跟随「背景」的 淡/满屏/无 以及浅色/深色主题。
+
 ## One language on screen · 界面只显示一种语言
 
 Pick 中文 or English in **设置 → 界面语言**; everything the screen shows follows that choice,
@@ -100,8 +123,8 @@ Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser
 | Section · 分区 | What you can change · 可调项 |
 |---|---|
 | 语言 Language | **界面只显示一种语言** · one language on screen — 中文 / English，切换后题目、按钮、提示全部跟着变 |
-| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 · 背景呼吸 breathing wash |
-| 计时 Timing | 全场准备倒数 1–10 秒 · **每段各自倒数 0–30 秒** · last-30s tick 最后30秒滴答 |
+| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 · 背景呼吸 breathing wash · **结束背景 end background**（灰 / 红 / 靛蓝 / 绿） |
+| 计时 Timing | 全场准备倒数 1–10 秒 · **每段各自倒数 0–30 秒** · **铃声先响完 Bell first** · last-30s tick 最后30秒滴答 |
 | 语音 Voice | 语音倒数 on/off · English / 中文 — speaks **every** number of the countdown (5 → "five, four, three, two, one") · 每个数字都念出来 |
 | 声音 Sound | **Volume 音量 slider 0–100** + test buttons 试听：叮 / 叮叮 / 哔 |
 | 分段 SECTIONS | 名称（中/英）· 分钟+秒 · 颜色 · 铃声时机与次数 · **每段倒数 0–30 秒** |

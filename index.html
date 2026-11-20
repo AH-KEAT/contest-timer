@@ -46,6 +46,9 @@
   #phaseEn{font-size:clamp(10px,1.4vh,18px);font-weight:500;letter-spacing:.24em;color:var(--field-fg);opacity:.72;text-transform:uppercase;transition:color .3s}
   #clock{font-size:clamp(72px,23vh,310px);font-weight:700;line-height:.9;letter-spacing:-.025em;
          font-variant-numeric:tabular-nums;transition:color .3s}
+  /* waiting for a bell to finish: no digit, or it reads as a count that is not
+     counting. Visibility, not display — the line box must not collapse. */
+  body.holding #clock{visibility:hidden}
   #bar{position:relative;width:min(78vw,1100px);height:clamp(4px,.8vh,9px);border-radius:99px;
        background:var(--track);overflow:visible;margin-top:clamp(14px,2.4vh,26px);
        margin-bottom:clamp(16px,2.6vh,30px)}
@@ -344,6 +347,25 @@
       </div>
       <div class="row">
         <div class="lbl">
+          <b><span class="zh">铃声先响完</span><span class="en">Bell first</span></b>
+          <em><span class="zh">倒数等铃声结束才开始，不会盖住铃声</span><span class="en">Countdown waits for the bell to finish</span></em>
+        </div>
+        <label class="sw"><input id="swBellFirst" type="checkbox" checked><i></i></label>
+      </div>
+      <div class="row">
+        <div class="lbl">
+          <b><span class="zh">结束背景</span><span class="en">End background</span></b>
+          <em><span class="zh">最后 TIME 画面的底色</span><span class="en">Colour of the final TIME screen</span></em>
+        </div>
+        <div class="seg" id="segEndBg">
+          <button data-endbg="grey"><span class="zh">灰</span><span class="en">Grey</span></button>
+          <button data-endbg="red"><span class="zh">红</span><span class="en">Red</span></button>
+          <button data-endbg="indigo"><span class="zh">靛蓝</span><span class="en">Indigo</span></button>
+          <button data-endbg="green"><span class="zh">绿</span><span class="en">Green</span></button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl">
           <b><span class="zh">铃声刻度</span><span class="en">Bell marks</span></b>
           <em><span class="zh">时间条上标出每次铃声</span><span class="en">Mark each bell on the time bar</span></em>
         </div>
@@ -421,6 +443,7 @@
   const MAX_RINGS = 6;      // six dings is the most anyone has asked for; a
                             // competition interval rarely runs longer
   const MAX_CD = 30;        // longest per-section countdown worth counting out
+  const MAX_HOLD = 3;       // a bell can delay a countdown by at most this long
   const newBell = () => ({ mode:"end", secs:0, rings:1 });
   // A section's length is exact seconds: min*60 + sec. `min` stays for
   // compatibility with older saves, `sec` adds the precision a contest needs
@@ -438,7 +461,7 @@
   };
   const DEFAULTS = () => ({
     theme:"auto", backdrop:"soft", wash:"flat", display:"section", marks:true, tick:false, volume:0.7,
-    uiLang:"zh",
+    uiLang:"zh", bellFirst:true, endBg:"grey",
     prep:{ on:true, secs:3, lights:true, voice:false, voiceLang:"en" },
     segments: DEFAULT_SEGMENTS(),
     overrides: structuredClone(NO_OVERRIDES)
@@ -510,6 +533,11 @@
     secsTitle: { zh:"秒", en:"seconds" },
     cdTitle: { zh:"进入本段前的倒数秒数", en:"Countdown seconds before this section" },
     cdLabel: { zh:"进入本段前倒数", en:"Count down before this section" },
+    bellFirst: { zh:"铃声先响完", en:"Bell first" },
+    bellFirstEm: { zh:"倒数等铃声结束才开始", en:"Let the bell finish before counting" },
+    endBg: { zh:"结束背景", en:"End background" },
+    endBgEm: { zh:"最后 TIME 画面的底色", en:"Colour of the final TIME screen" },
+    grey: { zh:"灰", en:"Grey" },
     minTitle: { zh:"分钟", en:"minutes" },
     deleteTitle: { zh:"删除", en:"Delete" },
     removeBell: { zh:"删除此铃", en:"remove bell" },
@@ -642,7 +670,14 @@
     o.connect(g).connect(master);
     o.start(t); o.stop(t + (dur || 0.12) + 0.05);
   }
-  const ring = (times) => { for (let i = 0; i < times; i++) bell(i * 0.46, 760, 2.4); };
+  const BELL_GAP = 0.46, BELL_DUR = 2.4;
+  const ring = (times) => { for (let i = 0; i < times; i++) bell(i * BELL_GAP, 760, BELL_DUR); };
+  // How long N rings actually sound, as seconds. Used to hold a countdown until
+  // a bell that rings at that moment has finished: the countdown used to talk
+  // straight over the "ting" of the section boundary.
+  // 0.8 of BELL_DUR is the audible part — the exponential tail is inaudible.
+  const bellSecs = (times) =>
+    Math.max(0, Math.max(1, times | 0) - 1) * BELL_GAP + BELL_DUR * 0.8;
 
   /* Spoken numbers for the prep countdown.
      SpeechSynthesis is a separate browser facility from Web Audio: it is not
@@ -727,7 +762,8 @@
     timeline = []; bells = []; totalSecs = 0;
     let cursor = 0;
     if (S.prep.on && S.prep.secs > 0) {
-      timeline.push({ kind:"prep", start:0, dur:S.prep.secs, title:"准备", sub:"GET READY", color:"indigo" });
+      timeline.push({ kind:"prep", start:0, dur:S.prep.secs, hold:0,
+                      title:"准备", sub:"GET READY", color:"indigo" });
       cursor += S.prep.secs;
     }
     S.segments.forEach((sg, i) => {
@@ -736,7 +772,10 @@
       // voice, the blip and the red→amber→green wash all work unchanged.
       const cd = Math.max(0, Math.min(MAX_CD, Math.round(Number(sg.cd) || 0)));
       if (cd > 0) {
-        timeline.push({ kind:"prep", start:cursor, dur:cd, title:"准备", sub:"GET READY", color:"indigo" });
+        // hold = dead time before the countdown starts, filled in below once the
+        // bells are known: a bell ringing right here must finish first
+        timeline.push({ kind:"prep", start:cursor, dur:cd, hold:0,
+                        title:"准备", sub:"GET READY", color:"indigo" });
         cursor += cd;
       }
       const dur = durSecs(sg);
@@ -769,6 +808,37 @@
     });
     bells.sort((a, b) => a.at - b.at);
 
+    // A countdown must not start on top of a bell. If a bell rings at or just
+    // before a countdown's first second, hold the countdown until that bell has
+    // finished sounding, then shift everything after it by the same amount so
+    // the timeline stays contiguous.
+    //
+    // One buildTimeline() pass, not a re-entrant one: the section boundaries the
+    // bells are computed from do not move, because a hold is inserted BEFORE the
+    // boundary and the shift is added uniformly to everything after it.
+    if (S.bellFirst !== false) {
+      for (const item of timeline) {
+        if (item.kind !== "prep") continue;
+        const at = item.start;
+        let hold = 0;
+        for (const b of bells) {
+          if (b.at > at + 0.02) break;            // sorted: nothing later can collide
+          const sounds = bellSecs(b.rings) - (at - b.at);
+          if (sounds > hold) hold = sounds;
+        }
+        hold = Math.min(hold, MAX_HOLD);
+        if (hold <= 0.02) continue;
+        // The prep does NOT move: it claims the boundary second while the bell
+        // rings, then counts for `dur`. So its window is [start, start+hold+dur]
+        // with the first `hold` seconds silent. The bell that rang there keeps
+        // its time — only what comes after slides.
+        item.hold = hold;
+        for (const it of timeline) if (it !== item && it.start > at + 0.001) it.start += hold;
+        for (const b of bells) if (b.at > at + 0.001) b.at += hold;
+        totalSecs += hold;
+      }
+    }
+
     // Anything already in the past when we (re)build mid-run is considered rung:
     // the room has moved on, and a late ting is worse than none.
     if (running) {
@@ -800,11 +870,15 @@
     }
     return acc;
   };
-  const currentItem = (e) => timeline.find(it => e < it.start + it.dur) || timeline[timeline.length - 1] || null;
+  // A prep item's counted window starts after its silent head, so a countdown
+  // that waits out a bell still counts 5,4,3,2,1 and not 8,7,6,5...
+  const prepFrom = (it) => it.start + (Number(it.hold) || 0);
+  const itemEnd = (it) => it.start + (Number(it.hold) || 0) + it.dur;
+  const currentItem = (e) => timeline.find(it => e < itemEnd(it)) || timeline[timeline.length - 1] || null;
   const elapsedNow = () => running ? (performance.now() - startedAt) / 1000 : pausedElapsed;
 
   /* ---------- backdrop ---------- */
-  let lastField = "";
+  let lastField = "", lastColourKey = "";
   function paintField(force, item, prepCount) {
     item = item || currentItem(elapsedNow());
     if (!item) return;
@@ -816,10 +890,18 @@
     // to sit on red until the last two seconds when it was hard-coded.
     let colourKey = item.color;
     if (item.kind === "prep" && S.prep.lights) {
-      const n = prepCount == null ? item.dur : prepCount;
-      const span = Math.max(1, item.dur);
-      colourKey = n <= 1 ? "green" : n <= Math.max(2, Math.ceil(span / 3)) ? "orange" : "red";
+      // prepCount == null means the countdown has not begun yet (a silent head,
+      // waiting for a bell to finish) — keep the previous phase's colour rather
+      // than flashing the indigo "about to count" wash before anything counts.
+      if (prepCount == null) {
+        colourKey = lastColourKey || item.color;
+      } else {
+        const span = Math.max(1, item.dur);
+        colourKey = prepCount <= 1 ? "green"
+                  : prepCount <= Math.max(2, Math.ceil(span / 3)) ? "orange" : "red";
+      }
     }
+    lastColourKey = colourKey;
     const col = hx(palette()[colourKey] || "#000000");
     const mode = S.backdrop;
 
@@ -962,8 +1044,10 @@
     const item = currentItem(e);
     if (!item) return;
 
-    const remaining = Math.max(0, item.start + item.dur - e);
+    // for a prep this is the counted window, so the silent head shows no digit
+    const remaining = Math.max(0, itemEnd(item) - e);
     const isPrep = item.kind === "prep";
+    const counting = isPrep && e >= prepFrom(item);
     const session = S.display === "session";
     const sStart = sessionStart(), sDur = sessionDur();
     // speaking time, not wall-clock: per-section countdowns sit inside the run
@@ -974,9 +1058,10 @@
     // run starts the honest number is the session total, not "3".
     const showTotal = session && !running && !finished && e === 0;
     const text = showTotal ? mmss(sDur)
-               : isPrep ? String(Math.max(0, Math.ceil(remaining)))
+               : isPrep ? (counting ? String(Math.max(1, Math.ceil(remaining))) : "")
                : mmss(shown);
     if (el.clock.textContent !== text) el.clock.textContent = text;
+    el.body.classList.toggle("holding", isPrep && !counting);
 
     // In session mode the caption says which clock you are reading, because a
     // big number that is neither the section nor the total is a real hazard.
@@ -998,7 +1083,7 @@
     // the edge at 1-progress, where it could never line up with a mark.
     el.fill.style.width = session
       ? (sDur > 0 ? Math.max(0, Math.min(1, sEl / sDur)) * 100 : 0).toFixed(2) + "%"
-      : (item.dur > 0 ? Math.max(0, Math.min(1, (e - item.start) / item.dur)) * 100 : 0).toFixed(2) + "%";
+      : (item.dur > 0 ? Math.max(0, Math.min(1, (e - prepFrom(item)) / item.dur)) * 100 : 0).toFixed(2) + "%";
 
     const i = timeline.indexOf(item);
     const nxt = timeline[i + 1];
@@ -1019,7 +1104,7 @@
         : "";
     }
 
-    paintField(false, item, isPrep ? Math.ceil(remaining) : null);
+    paintField(false, item, counting ? Math.ceil(remaining) : null);
     paintMarkers(item);
   }
 
@@ -1057,6 +1142,7 @@
     lastMarkKey = "";
     setBtn("idle");
     el.body.dataset.state = "idle";
+    el.body.classList.remove("holding");
     render();
   }
 
@@ -1074,11 +1160,28 @@
     el.fill.style.width = "100%";      // the run is fully consumed on the progress axis
     el.next.textContent = L("nextSpeaker");
     el.step.textContent = "";
+    // End-of-session wash. "grey" is the neutral "the room is done" look; a
+    // palette colour lets the host pick e.g. red for TIME or indigo to hand over
+    // quietly. Mixed exactly like the phase wash so the ink stays readable.
     const light = effTheme() === "light";
-    const rgb = light ? "rgb(214,214,214)" : "rgb(38,38,40)";
+    const mode = S.backdrop;
+    let rgb;
+    if (S.endBg && S.endBg !== "grey" && mode !== "off") {
+      const col = hx(palette()[S.endBg] || "#FF453A");
+      const a = mode === "solid" ? (light ? MIX.solidLight : MIX.solidDark)
+                                 : (light ? MIX.softLight : MIX.softDark);
+      const base = light ? [242,242,247] : [0,0,0];
+      const f = mix(base, col, a);
+      rgb = `rgb(${f[0]}, ${f[1]}, ${f[2]})`;
+      el.body.classList.toggle("solid-field", mode === "solid");
+      el.body.style.setProperty("--field-fg", lum(f) > 0.45 ? "#000000" : "#FFFFFF");
+    } else {
+      rgb = light ? "rgb(214,214,214)" : "rgb(38,38,40)";
+      el.body.style.setProperty("--field-fg", light ? "#000000" : "#FFFFFF");
+      el.body.classList.add("solid-field");
+    }
     el.body.style.setProperty("--field", rgb);
-    el.body.style.setProperty("--field-fg", light ? "#000000" : "#FFFFFF");
-    el.body.classList.add("solid-field");
+    el.body.classList.remove("holding");
     lastField = "done";
     paintLayer(rgb);
     setBtn("done");
@@ -1100,8 +1203,10 @@
     if (e >= totalSecs) { finish(); return; }
 
     const item = currentItem(e);
-    if (item && item.kind === "prep") {
-      const n = Math.max(1, Math.ceil(item.start + item.dur - e));
+    // `>= prepFrom` is what makes a countdown wait out a bell: during the silent
+    // head the digit is blank and nothing is spoken, so the bell is heard alone.
+    if (item && item.kind === "prep" && e >= prepFrom(item)) {
+      const n = Math.max(1, Math.ceil(itemEnd(item) - e));
       // gate on THIS item's own length: a section's 5s countdown must not be
       // silenced by the global 3s setting, or vice versa
       if (n !== lastBlip && n <= item.dur) {
@@ -1333,6 +1438,12 @@
   document.querySelectorAll("#segWash button").forEach(b => b.addEventListener("click", () => {
     S.wash = b.dataset.wash; save(); syncControls(); lastField = ""; paintField(true); render();
   }));
+  document.querySelectorAll("#segEndBg button").forEach(b => b.addEventListener("click", () => {
+    S.endBg = b.dataset.endbg; save(); syncControls();
+  }));
+  $("swBellFirst").addEventListener("change", (e) => {
+    S.bellFirst = e.target.checked; save(); buildTimeline(); lastMarkKey = ""; reset();
+  });
   document.querySelectorAll("#segLang button").forEach(b => b.addEventListener("click", () => {
     S.uiLang = b.dataset.uiLang === "en" ? "en" : "zh";
     save(); applyUiLang(); renderSegList(); lastMarkKey = ""; render();
@@ -1345,6 +1456,8 @@
     $("swVoice").checked = !!S.prep.voice;
     document.querySelectorAll("#segVoiceLang button").forEach(b =>
       b.classList.toggle("on", b.dataset.lang === (S.prep.voiceLang || "en")));
+    $("swBellFirst").checked = S.bellFirst !== false;
+    document.querySelectorAll("#segEndBg button").forEach(b => b.classList.toggle("on", b.dataset.endbg === (S.endBg || "grey")));
     $("swMarks").checked = !!S.marks;
     $("swTick").checked = !!S.tick;
     $("vol").value = Math.round(S.volume * 100);
@@ -1435,6 +1548,8 @@
     setVolume:   (v) => { S.volume = Math.max(0, Math.min(1, v)); save(); syncControls(); ensureAudio(); applyVolume(); },
     setBackdrop: (m) => { S.backdrop = m; save(); syncControls(); paintField(true); render(); },
     setWash:     (m) => { S.wash = m; save(); syncControls(); lastField = ""; paintField(true); render(); },
+    setBellFirst: (on) => { S.bellFirst = !!on; save(); syncControls(); buildTimeline(); lastMarkKey = ""; reset(); },
+    setEndBg:    (k) => { S.endBg = k; save(); syncControls(); },
     setUiLang:   (l) => { S.uiLang = l === "en" ? "en" : "zh"; save(); applyUiLang(); syncControls(); renderSegList(); lastMarkKey = ""; render(); },
     setDisplay:  (m) => { S.display = m; save(); syncControls(); lastMarkKey = ""; render(); },
     setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
@@ -1458,7 +1573,8 @@
     state: () => ({
       running, state: el.body.dataset.state, elapsed: elapsedNow(), total: totalSecs,
       settings: S, segments: S.segments,
-      timeline: timeline.map(x => ({ kind:x.kind, start:x.start, dur:x.dur, title:x.title, color:x.color })),
+      timeline: timeline.map(x => ({ kind:x.kind, start:x.start, dur:x.dur, hold:x.hold || 0,
+                                     title:x.title, color:x.color })),
       bells: bells.map(b => ({ at:b.at, rings:b.rings, fired:b.fired }))
     }),
     cues: () => cueLog.slice(),
