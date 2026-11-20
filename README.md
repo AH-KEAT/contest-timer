@@ -85,6 +85,27 @@ same red→amber→green wash as the global countdown.
 - The global countdown and a section countdown can both be on; the section one runs after the global one.
   全场倒数和每段倒数可以同时开，先跑全场的，再跑该段的。
 
+## Hiding the buttons on a phone · 手机上怎么隐藏按钮
+
+`设置 → 按钮`:
+
+| Mode · 模式 | On a projector · 投影上 | On a phone · 手机上 |
+|---|---|---|
+| **显示 Always** | buttons pinned, always visible 一直显示 | right for a phone you are holding 适合拿在手上 |
+| **触碰 On touch** (default · 预设) | appear on mouse move, fade after 2.6 s 动鼠标才出现 | a tap shows them for 2.6 s 点一下出现 2.6 秒 |
+| **隐藏 Hidden** | nothing on screen at all 完全不显示 | **a tap only peeks the bar for 5 s — it can never start, pause or reset** |
+
+The last row is the important one: in **隐藏** mode a stray hand on the screen does **not**
+touch the timer — it only reveals the bar, and the *next* tap is the one that presses a button.
+That is deliberate. The alternative (tap-anywhere-to-pause) means someone resting a hand on a
+phone silently stops a competitor mid-speech.
+最后一行是关键：**隐藏**模式下手指误触屏幕**不会**动到计时器 —— 只是把按钮亮出来，
+真正按到按钮的是**下一次**点击。这是故意的。反过来做（点哪都暂停）会让手一放上去
+就把选手的计时静悄悄停掉。
+
+On a laptop there is also `H` to toggle the bar with no timer attached — handy on a lectern.
+笔记本上还有 `H` 键可切换显示，没有计时限制 —— 讲台用很方便。
+
 ## Start screen · 开始画面
 
 Before you press START, the big digit previews what will happen first: if the run opens with a
@@ -134,7 +155,7 @@ Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser
 | Section · 分区 | What you can change · 可调项 |
 |---|---|
 | 语言 Language | **界面只显示一种语言** · one language on screen — 中文 / English，切换后题目、按钮、提示全部跟着变 |
-| 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 · 背景呼吸 breathing wash · **结束背景 end background**（灰 / 红 / 靛蓝 / 绿） |
+| 外观 Appearance | Theme 主题 · 背景呼吸 breathing wash · **结束背景 end background**（灰/红/靛蓝/绿）· **按钮 Buttons**（显示 / 触碰 / 隐藏） |
 | 计时 Timing | 全场准备倒数 1–10 秒 · **每段各自倒数 0–30 秒** · **铃声先响完 Bell first** · last-30s tick 最后30秒滴答 |
 | 语音 Voice | 语音倒数 on/off · English / 中文 — speaks **every** number of the countdown (5 → "five, four, three, two, one") · 每个数字都念出来 |
 | 声音 Sound | **Volume 音量 slider 0–100** + test buttons 试听：叮 / 叮叮 / 哔 |

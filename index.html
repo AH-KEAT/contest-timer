@@ -99,10 +99,24 @@
     transition:opacity .28s,transform .28s;z-index:6;flex-wrap:wrap;
     background:linear-gradient(transparent,rgba(0,0,0,.34))}
   body[data-theme="light"] #controls{background:linear-gradient(transparent,rgba(0,0,0,.05))}
-  body:hover #controls,body.show-ui #controls,body.settings-open #controls{opacity:1;transform:none}
+  /* Who may show the bar. Default is "hidden until asked": on a projector the
+     buttons must not sit on screen, but the operator still needs them.
+       always — pinned, for a phone that is being held
+       touch  — hover (desktop) or a tap (phone) reveals, then it fades out
+       hidden — nothing on screen; a tap PEEKS the bar for 5s, nothing else
+     A tap in hidden mode never starts or pauses the timer — only peeking does
+     happen, so a stray hand on the screen cannot stop a competitor. */
+  body[data-controls="always"] #controls{opacity:1;transform:none}
+  body[data-controls="touch"]:hover #controls,
+  body[data-controls="touch"].show-ui #controls,
+  body[data-controls="hidden"].peek #controls,
+  body.settings-open #controls{opacity:1;transform:none}
   #hint{position:fixed;top:calc(12px + env(safe-area-inset-top));left:0;right:0;text-align:center;font-size:12px;
     letter-spacing:.05em;color:var(--dim);opacity:0;transition:opacity .28s;z-index:5}
-  body:hover #hint,body.show-ui #hint{opacity:1}
+  body[data-controls="always"] #hint{opacity:1}
+  body[data-controls="touch"]:hover #hint,
+  body[data-controls="touch"].show-ui #hint,
+  body[data-controls="hidden"].peek #hint{opacity:1}
   button{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--border);
     border-radius:11px;padding:10px 16px;cursor:pointer;transition:background .15s,transform .08s;white-space:nowrap}
   button:hover{background:var(--surface-2)}
@@ -369,6 +383,17 @@
       </div>
       <div class="row">
         <div class="lbl">
+          <b><span class="zh">按钮</span><span class="en">Buttons</span></b>
+          <em><span class="zh">隐藏时点一下屏幕出现，再点一下按钮</span><span class="en">Hidden: tap the screen to show them</span></em>
+        </div>
+        <div class="seg" id="segControls">
+          <button data-controls="always"><span class="zh">显示</span><span class="en">Always</span></button>
+          <button data-controls="touch"><span class="zh">触碰</span><span class="en">On touch</span></button>
+          <button data-controls="hidden"><span class="zh">隐藏</span><span class="en">Hidden</span></button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl">
           <b><span class="zh">铃声刻度</span><span class="en">Bell marks</span></b>
           <em><span class="zh">时间条上标出每次铃声</span><span class="en">Mark each bell on the time bar</span></em>
         </div>
@@ -464,7 +489,7 @@
   };
   const DEFAULTS = () => ({
     theme:"auto", backdrop:"soft", wash:"flat", display:"section", marks:true, tick:false, volume:0.7,
-    uiLang:"zh", bellFirst:true, endBg:"grey",
+    uiLang:"zh", bellFirst:true, endBg:"grey", controls:"touch",
     prep:{ on:true, secs:3, lights:true, voice:false, voiceLang:"en" },
     segments: DEFAULT_SEGMENTS(),
     overrides: structuredClone(NO_OVERRIDES)
@@ -541,6 +566,11 @@
     endBg: { zh:"结束背景", en:"End background" },
     endBgEm: { zh:"最后 TIME 画面的底色", en:"Colour of the final TIME screen" },
     grey: { zh:"灰", en:"Grey" },
+    controls: { zh:"按钮", en:"Buttons" },
+    controlsEm: { zh:"投影时隐藏，点一下屏幕才出现", en:"Hide on the projector, tap the screen to show" },
+    ctlAlways: { zh:"显示", en:"Always" },
+    ctlTouch: { zh:"触碰", en:"On touch" },
+    ctlHidden: { zh:"隐藏", en:"Hidden" },
     minTitle: { zh:"分钟", en:"minutes" },
     deleteTitle: { zh:"删除", en:"Delete" },
     removeBell: { zh:"删除此铃", en:"remove bell" },
@@ -553,6 +583,14 @@
     countdown: { zh:"准备",  en:"GET READY" }
   };
   const L = (k) => (UI[k] || {})[S.uiLang === "en" ? "en" : "zh"] ?? k;
+
+  function applyControls() {
+    const m = S.controls === "always" || S.controls === "hidden" ? S.controls : "touch";
+    el.body.dataset.controls = m;
+    el.body.classList.remove("peek", "show-ui");
+    document.querySelectorAll("#segControls button").forEach(b =>
+      b.classList.toggle("on", b.dataset.controls === m));
+  }
 
   function applyUiLang() {
     el.body.dataset.lang = S.uiLang === "en" ? "en" : "zh";
@@ -1119,7 +1157,10 @@
   }
 
   /* ---------- transport ---------- */
+  // The body attribute is the single source of truth for "what is the transport
+  // doing", so both the label and any later relabel read it from here.
   const setBtn = (m) => {
+    el.body.dataset.state = m;
     $("btnStart").textContent = m === "running" ? L("pause") : m === "done" ? L("again") : L("start");
   };
   const startLoop = () => { if (!timerId) timerId = setInterval(tick, 100); };
@@ -1151,7 +1192,6 @@
     lastLayer = "";
     lastMarkKey = "";
     setBtn("idle");
-    el.body.dataset.state = "idle";
     el.body.classList.remove("holding");
     render();
   }
@@ -1164,7 +1204,7 @@
     if (el.caption) el.caption.textContent = "";
     lastMarkKey = "";
     running = false; stopLoop();
-    el.body.dataset.state = "done";
+    setBtn("done");
     el.zh.textContent = L("doneZh"); el.en.textContent = "";
     el.clock.textContent = "00:00";
     el.fill.style.width = "100%";      // the run is fully consumed on the progress axis
@@ -1448,6 +1488,9 @@
   document.querySelectorAll("#segWash button").forEach(b => b.addEventListener("click", () => {
     S.wash = b.dataset.wash; save(); syncControls(); lastField = ""; paintField(true); render();
   }));
+  document.querySelectorAll("#segControls button").forEach(b => b.addEventListener("click", () => {
+    S.controls = b.dataset.controls; save(); applyControls(); syncControls();
+  }));
   document.querySelectorAll("#segEndBg button").forEach(b => b.addEventListener("click", () => {
     S.endBg = b.dataset.endbg; save(); syncControls();
   }));
@@ -1467,6 +1510,8 @@
     document.querySelectorAll("#segVoiceLang button").forEach(b =>
       b.classList.toggle("on", b.dataset.lang === (S.prep.voiceLang || "en")));
     $("swBellFirst").checked = S.bellFirst !== false;
+    document.querySelectorAll("#segControls button").forEach(b =>
+      b.classList.toggle("on", b.dataset.controls === (S.controls || "touch")));
     document.querySelectorAll("#segEndBg button").forEach(b => b.classList.toggle("on", b.dataset.endbg === (S.endBg || "grey")));
     $("swMarks").checked = !!S.marks;
     $("swTick").checked = !!S.tick;
@@ -1539,17 +1584,44 @@
     else if (k === "f") toggleFull();
     else if (k === "s") openSheet(!sheet.classList.contains("open"));
     else if (e.key === "Escape") openSheet(false);
-    else if (k === "h") el.body.classList.toggle("show-ui");
+    else if (k === "h") {
+      // a permanent toggle for a laptop on a lectern: no pointer, no timer
+      el.body.classList.toggle("peek");
+    }
   });
 
+  /* Revealing the controls.
+     In "hidden" mode a tap must not do anything except peek, because the
+     operator's hand resting on a phone screen otherwise pauses or resets a
+     competitor mid-speech — the one thing this app must never do by accident.
+     So: peek shows the bar for a few seconds and swallows nothing; the second
+     tap lands on a real button. Touch and hover modes keep the old behaviour. */
   let idleT;
+  const peekMs = () => (S.controls === "hidden" ? 5000 : 2600);
   const reveal = () => {
+    if (S.controls === "always" || S.controls === "hidden") {
+      if (S.controls === "hidden") { peek(); return; }
+      return;                                  // always: nothing to reveal
+    }
     el.body.classList.add("show-ui");
     clearTimeout(idleT);
-    idleT = setTimeout(() => el.body.classList.remove("show-ui"), 2600);
+    idleT = setTimeout(() => el.body.classList.remove("show-ui"), peekMs());
   };
-  document.addEventListener("mousemove", reveal);
-  document.addEventListener("touchstart", reveal, { passive:true });
+  function peek() {
+    el.body.classList.add("peek");
+    clearTimeout(idleT);
+    idleT = setTimeout(() => el.body.classList.remove("peek"), peekMs());
+  }
+  document.addEventListener("mousemove", () => { if (S.controls === "touch") reveal(); });
+  // A tap ON the bar is a tap on a button: let it through and keep the bar up
+  // long enough to press a second one. Anywhere else just peeks.
+  document.addEventListener("touchstart", (e) => {
+    if (e.target.closest && e.target.closest("#controls")) {
+      if (S.controls === "hidden") peek();     // restart the 5s window
+      return;
+    }
+    reveal();
+  }, { passive:true });
 
   /* ---------- public API (tests) ---------- */
   window.contestTimer = {
@@ -1560,6 +1632,7 @@
     setWash:     (m) => { S.wash = m; save(); syncControls(); lastField = ""; paintField(true); render(); },
     setBellFirst: (on) => { S.bellFirst = !!on; save(); syncControls(); buildTimeline(); lastMarkKey = ""; reset(); },
     setEndBg:    (k) => { S.endBg = k; save(); syncControls(); },
+    setControls: (m) => { S.controls = m; save(); applyControls(); syncControls(); },
     setUiLang:   (l) => { S.uiLang = l === "en" ? "en" : "zh"; save(); applyUiLang(); syncControls(); renderSegList(); lastMarkKey = ""; render(); },
     setDisplay:  (m) => { S.display = m; save(); syncControls(); lastMarkKey = ""; render(); },
     setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
@@ -1594,6 +1667,7 @@
 
   syncControls();
   applyTheme();
+  applyControls();
   applyUiLang();
   renderSegList();
   buildTimeline();
