@@ -165,7 +165,7 @@
   .segNo{width:20px;height:20px;border-radius:99px;background:var(--track);color:var(--dim);font-size:11px;
     font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
   .segTop .segTitle{flex:1;min-width:90px;font-size:14px}
-  .segTop .segSub{flex:1;min-width:70px;font-size:12px}
+  .segTop .segSub{flex:1;min-width:80px;font-size:12.5px;color:var(--dim)}
   .segOpt input[type=number]{font-size:12.5px;padding:5px 7px;width:50px}
   .segOpt select{font-size:12.5px;padding:5px 7px}
   .del{border:none;background:transparent;color:#FF453A;font-size:15px;padding:3px 6px;border-radius:7px;cursor:pointer;line-height:1}
@@ -184,7 +184,27 @@
            font-size:12px;padding:5px 9px;border-radius:8px;cursor:pointer;margin-top:2px}
   .dot{width:19px;height:19px;border-radius:99px;border:2px solid transparent;cursor:pointer;padding:0;flex:none}
   .dot.on{border-color:var(--fg)}
+  /* per-section countdown: its own quiet row, so it never reads as the length */
+  .cdRow{display:flex;align-items:center;gap:5px;margin-top:7px;padding:5px 7px;
+    background:var(--surface);border:1px dashed var(--border);border-radius:9px;
+    font-size:11.5px;color:var(--dim)}
+  .cdThumb{font-size:12px;line-height:1;opacity:.8}
+  .cdLab{flex:1;min-width:0}
+  .cdRow input[type=number]{width:46px;font-size:12px;padding:3px 4px;text-align:center;border-radius:7px}
+  .cdRow input.hasCd{color:var(--accent);font-weight:700;border-color:var(--accent)}
   .totalRow{font-size:12px;color:var(--dim)}
+
+  /* ===== single-language UI =====
+     The screen must show ONE language at a time. Every bilingual string is
+     marked with .zh / .en so the choice is a pure CSS switch — no re-render,
+     no risk of a half-translated frame appearing on the projector. */
+  body[data-lang="zh"] .en{display:none!important}
+  body[data-lang="en"] .zh{display:none!important}
+  body[data-lang="en"] .lbl em{letter-spacing:.01em}
+  /* the editor holds both names per section, so show only the one being used —
+     the other is still saved untouched and comes back when the language flips */
+  body[data-lang="en"] .segTitle,body[data-lang="zh"] .segSub{display:none!important}
+  body[data-lang="en"] .segSub{color:var(--fg)}
 </style>
 </head>
 <body data-state="idle" data-theme="dark" data-sound="locked">
@@ -201,44 +221,76 @@
   <div id="step"></div>
 </div>
 
-<div id="hint">SPACE 开始 · R 重置 · F 全屏 · S 设置 &nbsp;|&nbsp; Space · R reset · F fullscreen · S settings</div>
+<div id="hint"><span class="zh">空格 开始 · R 重置 · F 全屏 · S 设置</span><span class="en">Space start · R reset · F fullscreen · S settings</span></div>
 
 <div id="controls">
-  <button id="btnStart" class="primary">开始 START</button>
-  <button id="btnReset">重置 RESET</button>
-  <button id="btnFull">全屏 FULL</button>
-  <button id="btnSound" class="icon" title="点一下开启声音 · tap to enable sound">🔇</button>
-  <button id="btnSettings" class="icon" title="设置 Settings (S)">⚙︎</button>
+  <button id="btnStart" class="primary">开始</button>
+  <button id="btnReset"><span class="zh">重置</span><span class="en">Reset</span></button>
+  <button id="btnFull"><span class="zh">全屏</span><span class="en">Full</span></button>
+  <button id="btnSound" class="icon">🔇</button>
+  <button id="btnSettings" class="icon" title="Settings (S)">⚙︎</button>
 </div>
 
 <div id="sheet">
   <div class="card">
-    <div class="cardHead"><h2>设置<small>Settings</small></h2><button id="sheetClose">完成 Done</button></div>
+    <div class="cardHead">
+      <h2><span class="zh">设置</span><span class="en">Settings</span></h2>
+      <button id="sheetClose"><span class="zh">完成</span><span class="en">Done</span></button>
+    </div>
 
-    <div class="groupLabel"><span>分段 SECTIONS</span><span class="totalRow" id="totalTime"></span></div>
-    <div class="segList" id="segList"></div>
-    <button class="addSeg" id="btnAddSeg">＋ 添加分段 · Add section</button>
-
-    <div class="groupLabel"><span>准备倒数 COUNTDOWN</span></div>
+    <div class="groupLabel"><span><span class="zh">界面语言</span><span class="en">LANGUAGE</span></span></div>
     <div class="group">
       <div class="row">
-        <div class="lbl"><b>启用倒数</b><em>Count down before the first section</em></div>
+        <div class="lbl">
+          <b><span class="zh">显示语言</span><span class="en">Language</span></b>
+          <em><span class="zh">界面上只显示一种语言</span><span class="en">One language on screen</span></em>
+        </div>
+        <div class="seg" id="segLang">
+          <button data-ui-lang="zh">中文</button>
+          <button data-ui-lang="en">English</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="groupLabel"><span><span class="zh">分段</span><span class="en">SECTIONS</span></span><span class="totalRow" id="totalTime"></span></div>
+    <div class="segList" id="segList"></div>
+    <button class="addSeg" id="btnAddSeg"><span class="zh">＋ 添加分段</span><span class="en">+ Add section</span></button>
+
+    <div class="groupLabel"><span><span class="zh">准备倒数</span><span class="en">COUNTDOWN</span></span></div>
+    <div class="group">
+      <div class="row">
+        <div class="lbl">
+          <b><span class="zh">启用倒数</span><span class="en">Countdown</span></b>
+          <em><span class="zh">每段开始前倒数</span><span class="en">Before each section</span></em>
+        </div>
         <label class="sw"><input id="swPrep" type="checkbox" checked><i></i></label>
       </div>
       <div class="row">
-        <div class="lbl"><b>秒数 Seconds</b><em>3 = 3·2·1</em></div>
+        <div class="lbl">
+          <b><span class="zh">秒数</span><span class="en">Seconds</span></b>
+          <em><span class="zh">第一段前的倒数</span><span class="en">Before the first section</span></em>
+        </div>
         <div class="inl"><input id="setPrepSecs" type="number" min="1" max="10" step="1" value="3"><span>s</span></div>
       </div>
       <div class="row">
-        <div class="lbl"><b>每秒换色</b><em>Red → amber → green 红→黄→绿</em></div>
+        <div class="lbl">
+          <b><span class="zh">每秒换色</span><span class="en">Colour per second</span></b>
+          <em><span class="zh">红 → 黄 → 绿</span><span class="en">Red to amber to green</span></em>
+        </div>
         <label class="sw"><input id="swLights" type="checkbox" checked><i></i></label>
       </div>
       <div class="row">
-        <div class="lbl"><b>语音倒数</b><em>Say every number · 念出每个数字</em></div>
+        <div class="lbl">
+          <b><span class="zh">语音倒数</span><span class="en">Spoken count</span></b>
+          <em><span class="zh">念出每个数字</span><span class="en">Say every number</span></em>
+        </div>
         <label class="sw"><input id="swVoice" type="checkbox"><i></i></label>
       </div>
       <div class="row">
-        <div class="lbl"><b>语音语言</b><em>Voice language</em></div>
+        <div class="lbl">
+          <b><span class="zh">语音语言</span><span class="en">Voice language</span></b>
+          <em><span class="zh">只影响发声</span><span class="en">Speech only</span></em>
+        </div>
         <div class="seg" id="segVoiceLang">
           <button data-lang="en">English</button>
           <button data-lang="zh">中文</button>
@@ -246,49 +298,80 @@
       </div>
     </div>
 
-    <div class="groupLabel"><span>外观 APPEARANCE</span></div>
+    <div class="groupLabel"><span><span class="zh">外观</span><span class="en">APPEARANCE</span></span></div>
     <div class="group">
       <div class="row">
-        <div class="lbl"><b>主题 Theme</b><em>自动 / 浅色 / 深色</em></div>
+        <div class="lbl">
+          <b><span class="zh">主题</span><span class="en">Theme</span></b>
+          <em><span class="zh">自动 / 浅色 / 深色</span><span class="en">Auto / light / dark</span></em>
+        </div>
         <div class="seg" id="segTheme">
-          <button data-theme="auto" class="on">自动</button>
-          <button data-theme="light">浅色</button>
-          <button data-theme="dark">深色</button>
+          <button data-theme="auto"><span class="zh">自动</span><span class="en">Auto</span></button>
+          <button data-theme="light"><span class="zh">浅色</span><span class="en">Light</span></button>
+          <button data-theme="dark"><span class="zh">深色</span><span class="en">Dark</span></button>
         </div>
       </div>
       <div class="row">
-        <div class="lbl"><b>倒数显示</b><em>本段=每段各自倒数 / 合并全场=所有分段合成一个总倒数<br>section = per section / merged = one total run</em></div>
+        <div class="lbl">
+          <b><span class="zh">倒数显示</span><span class="en">Clock mode</span></b>
+          <em><span class="zh">本段=每段各自倒数；合并全场=所有分段合成一个总倒数</span><span class="en">Section = each section counts itself, merged = one total run</span></em>
+        </div>
         <div class="seg" id="segDisplay">
-          <button data-display="section">本段</button>
-          <button data-display="session">合并全场</button>
+          <button data-display="section"><span class="zh">本段</span><span class="en">Section</span></button>
+          <button data-display="session"><span class="zh">合并全场</span><span class="en">Merged</span></button>
         </div>
       </div>
       <div class="row">
-        <div class="lbl"><b>背景 Backdrop</b><em>段落颜色铺底 · fills the screen</em></div>
+        <div class="lbl">
+          <b><span class="zh">背景</span><span class="en">Backdrop</span></b>
+          <em><span class="zh">段落颜色铺底</span><span class="en">Phase colour behind everything</span></em>
+        </div>
         <div class="seg" id="segBackdrop">
-          <button data-bg="off">无</button>
-          <button data-bg="soft" class="on">淡</button>
-          <button data-bg="solid">满屏</button>
+          <button data-bg="off"><span class="zh">无</span><span class="en">Off</span></button>
+          <button data-bg="soft"><span class="zh">淡</span><span class="en">Soft</span></button>
+          <button data-bg="solid"><span class="zh">满屏</span><span class="en">Solid</span></button>
         </div>
       </div>
       <div class="row">
-        <div class="lbl"><b>铃声刻度</b><em>Bell marks on the time bar 时间条上标出每次铃声</em></div>
+        <div class="lbl">
+          <b><span class="zh">背景呼吸</span><span class="en">Breathing wash</span></b>
+          <em><span class="zh">背景随本段剩余时间变亮</span><span class="en">Wash brightens as the section runs out</span></em>
+        </div>
+        <div class="seg" id="segWash">
+          <button data-wash="flat"><span class="zh">固定</span><span class="en">Flat</span></button>
+          <button data-wash="breathe"><span class="zh">呼吸</span><span class="en">Breathe</span></button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="lbl">
+          <b><span class="zh">铃声刻度</span><span class="en">Bell marks</span></b>
+          <em><span class="zh">时间条上标出每次铃声</span><span class="en">Mark each bell on the time bar</span></em>
+        </div>
         <label class="sw"><input id="swMarks" type="checkbox" checked><i></i></label>
       </div>
       <div class="row">
-        <div class="lbl"><b>最后 30 秒滴答</b><em>Soft tick in final 30 s</em></div>
+        <div class="lbl">
+          <b><span class="zh">最后 30 秒滴答</span><span class="en">Final 30s tick</span></b>
+          <em><span class="zh">最后一分钟前的细声滴答</span><span class="en">Soft tick in the last 30 s</span></em>
+        </div>
         <label class="sw"><input id="swTick" type="checkbox"><i></i></label>
       </div>
     </div>
 
-    <div class="groupLabel"><span>声音 SOUND</span></div>
+    <div class="groupLabel"><span><span class="zh">声音</span><span class="en">SOUND</span></span></div>
     <div class="group">
       <div class="row">
-        <div class="lbl"><b>音量 Volume</b><em>铃声大小 bell loudness</em></div>
+        <div class="lbl">
+          <b><span class="zh">音量</span><span class="en">Volume</span></b>
+          <em><span class="zh">铃声大小</span><span class="en">Bell loudness</span></em>
+        </div>
         <div class="inl"><input id="vol" type="range" min="0" max="100" step="1" value="70"><span id="volNum">70</span></div>
       </div>
       <div class="row">
-        <div class="lbl"><b>试听 Test</b><em>叮 / 叮叮 / 叮叮叮</em></div>
+        <div class="lbl">
+          <b><span class="zh">试听</span><span class="en">Test</span></b>
+          <em><span class="zh">叮 / 叮叮 / 叮叮叮</span><span class="en">One / two / three dings</span></em>
+        </div>
         <div class="inl">
           <button class="mini" data-test="1">叮</button>
           <button class="mini" data-test="2">叮叮</button>
@@ -297,21 +380,20 @@
       </div>
     </div>
 
-    <div class="groupLabel"><span>颜色 COLOURS</span></div>
+    <div class="groupLabel"><span><span class="zh">颜色</span><span class="en">COLOURS</span></span></div>
     <div class="group">
-      <div class="row"><div class="lbl"><b>靛蓝 Indigo</b><em>准备 / 等待</em></div><input id="cIndigo" type="color" value="#5E5CE6"></div>
-      <div class="row"><div class="lbl"><b>绿 Green</b><em>顺利</em></div><input id="cGreen" type="color" value="#30D158"></div>
-      <div class="row"><div class="lbl"><b>蓝 Blue</b><em>中性延续</em></div><input id="cBlue" type="color" value="#0A84FF"></div>
-      <div class="row"><div class="lbl"><b>橙 Orange</b><em>收尾 / 倒数 2</em></div><input id="cOrange" type="color" value="#FF9F0A"></div>
-      <div class="row"><div class="lbl"><b>红 Red</b><em>停止 / 倒数 3</em></div><input id="cRed" type="color" value="#FF453A"></div>
-      <div class="row"><button id="btnPalette" class="restore">恢复 Apple 标准配色 · Restore palette</button></div>
+      <div class="row"><div class="lbl"><b><span class="zh">靛蓝</span><span class="en">Indigo</span></b><em><span class="zh">准备 / 等待</span><span class="en">Waiting</span></em></div><input id="cIndigo" type="color" value="#5E5CE6"></div>
+      <div class="row"><div class="lbl"><b><span class="zh">绿</span><span class="en">Green</span></b><em><span class="zh">顺利进行</span><span class="en">On track</span></em></div><input id="cGreen" type="color" value="#30D158"></div>
+      <div class="row"><div class="lbl"><b><span class="zh">蓝</span><span class="en">Blue</span></b><em><span class="zh">中性延续</span><span class="en">Neutral</span></em></div><input id="cBlue" type="color" value="#0A84FF"></div>
+      <div class="row"><div class="lbl"><b><span class="zh">橙</span><span class="en">Orange</span></b><em><span class="zh">收尾</span><span class="en">Wrap up</span></em></div><input id="cOrange" type="color" value="#FF9F0A"></div>
+      <div class="row"><div class="lbl"><b><span class="zh">红</span><span class="en">Red</span></b><em><span class="zh">停止 / 超时</span><span class="en">Stop</span></em></div><input id="cRed" type="color" value="#FF453A"></div>
+      <div class="row"><button id="btnPalette" class="restore"><span class="zh">恢复 Apple 标准配色</span><span class="en">Restore Apple palette</span></button></div>
     </div>
 
     <div class="note">
-      <b>每段铃声 · Bell per section</b><br>
-      每段可设响铃时机：<b>结束时</b>、<b>结束前 N 秒</b>、或 <b>开始后 N 秒</b>，并选响 <b>1 / 2 / 3</b> 下。
-      <br>
-      Each section rings at its end, N seconds before the end, or N seconds after the start — once, twice or three times.
+      <b><span class="zh">每段铃声与倒数</span><span class="en">Per-section bells and countdown</span></b><br>
+      <span class="zh">每段可设响铃时机：<b>结束时</b>、<b>结束前 N 秒</b>、或 <b>开始后 N 秒</b>，并选响 1–6 下；<b>⏱</b> 该格填 N 表示进入这一段前先倒数 N 秒。</span>
+      <span class="en">Each section rings at its end, N seconds before the end, or N seconds after the start — once to six times. The <b>⏱</b> box counts N seconds down before that section starts.</span>
     </div>
   </div>
 </div>
@@ -338,6 +420,7 @@
   ]);
   const MAX_RINGS = 6;      // six dings is the most anyone has asked for; a
                             // competition interval rarely runs longer
+  const MAX_CD = 30;        // longest per-section countdown worth counting out
   const newBell = () => ({ mode:"end", secs:0, rings:1 });
   // A section's length is exact seconds: min*60 + sec. `min` stays for
   // compatibility with older saves, `sec` adds the precision a contest needs
@@ -354,7 +437,8 @@
     return [ Object.assign(newBell(), sg.bell || {}) ];
   };
   const DEFAULTS = () => ({
-    theme:"auto", backdrop:"soft", display:"section", marks:true, tick:false, volume:0.7,
+    theme:"auto", backdrop:"soft", wash:"flat", display:"section", marks:true, tick:false, volume:0.7,
+    uiLang:"zh",
     prep:{ on:true, secs:3, lights:true, voice:false, voiceLang:"en" },
     segments: DEFAULT_SEGMENTS(),
     overrides: structuredClone(NO_OVERRIDES)
@@ -371,7 +455,7 @@
     S.overrides = Object.assign(structuredClone(NO_OVERRIDES), S.overrides || {});
     if (!Array.isArray(S.segments) || !S.segments.length) S.segments = DEFAULT_SEGMENTS();
     S.segments = S.segments.map(sg => {
-      const out = Object.assign({ t:"新分段", s:"", min:0, sec:0, color:"blue" }, sg);
+      const out = Object.assign({ t:"新分段", s:"", min:0, sec:0, color:"blue", cd:0 }, sg);
       // legacy saves stored a decimal `min` (0.5 = 30 s) — fold the fraction into sec
       const m = Math.floor(Number(out.min) || 0);
       const frac = Math.round(((Number(out.min) || 0) - m) * 60);
@@ -398,6 +482,57 @@
   /* ---------- theme ---------- */
   const mq = window.matchMedia("(prefers-color-scheme: light)");
   const effTheme = () => S.theme === "auto" ? (mq.matches ? "light" : "dark") : S.theme;
+
+  /* ---------- UI language ----------
+     The projector must show one language. Static text is switched by CSS
+     (body[data-lang]); anything JS writes into the DOM goes through L() so it
+     follows the same choice. */
+  const UI = {
+    start:   { zh:"开始",   en:"Start" },
+    pause:   { zh:"暂停",   en:"Pause" },
+    again:   { zh:"再来一次", en:"Again" },
+    ready:   { zh:"准备",   en:"GET READY" },
+    session: { zh:"全场剩余", en:"SESSION REMAINING" },
+    next:    { zh:"接下来",  en:"NEXT" },
+    section: { zh:"段",      en:"SECTION" },
+    of:      { zh:"/",      en:"OF" },
+    doneZh:  { zh:"结束",   en:"TIME" },
+    nextSpeaker: { zh:"请下一位选手准备", en:"Next speaker, please" },
+    noVoice: { zh:"此浏览器不支持语音", en:"This browser has no speech voice" },
+    total:   { zh:"总计",   en:"TOTAL" },
+    addBell: { zh:"＋ 加铃", en:"+ add bell" },
+    bellWhen: { zh:"铃声时机", en:"bell timing" },
+    bellAtEnd: { zh:"结束时", en:"at end" },
+    bellBefore: { zh:"结束前 N 秒", en:"N s before end" },
+    bellAfter: { zh:"开始后 N 秒", en:"N s after start" },
+    addSeg:  { zh:"＋ 添加分段", en:"+ Add section" },
+    newSeg:  { zh:"新分段",  en:"New section" },
+    secsTitle: { zh:"秒", en:"seconds" },
+    cdTitle: { zh:"进入本段前的倒数秒数", en:"Countdown seconds before this section" },
+    cdLabel: { zh:"进入本段前倒数", en:"Count down before this section" },
+    minTitle: { zh:"分钟", en:"minutes" },
+    deleteTitle: { zh:"删除", en:"Delete" },
+    removeBell: { zh:"删除此铃", en:"remove bell" },
+    titlePhZh: { zh:"段落标题", en:"Chinese title" },
+    titlePhEn: { zh:"English title", en:"English title" },
+    bellLate: { zh:"铃声超出总时长，不会响", en:"Bell is past the end, it will not ring" },
+    bellEarly:{ zh:"铃声落在开始之前，已提前到 0 秒", en:"Bell is before the start, moved to 0 s" },
+    soundOn: { zh:"声音已开启", en:"sound on" },
+    soundTap:{ zh:"点一下开启声音（手机必须点一次）", en:"tap once to enable sound" },
+    countdown: { zh:"准备",  en:"GET READY" }
+  };
+  const L = (k) => (UI[k] || {})[S.uiLang === "en" ? "en" : "zh"] ?? k;
+
+  function applyUiLang() {
+    el.body.dataset.lang = S.uiLang === "en" ? "en" : "zh";
+    document.documentElement.lang = S.uiLang === "en" ? "en" : "zh-Hans";
+    document.querySelectorAll("#segLang button").forEach(b =>
+      b.classList.toggle("on", b.dataset.uiLang === S.uiLang));
+    setBtn(el.body.dataset.state === "running" ? "running"
+         : el.body.dataset.state === "done" ? "done" : "idle");
+    markSoundState(true);          // its tooltip is a JS string, not a .zh/.en span
+    $("btnSettings").title = S.uiLang === "en" ? "Settings (S)" : "设置 (S)";
+  }
 
   function applyTheme() {
     const t = effTheme();
@@ -449,14 +584,13 @@
      up front and re-resumed whenever a bell is due. */
   let ac = null, master = null, unlocked = false;
 
-  function markSoundState() {
+  function markSoundState(force) {
     const state = ac && ac.state === "running" && unlocked ? "ready" : "locked";
-    if (el.body.dataset.sound !== state) {
+    if (force || el.body.dataset.sound !== state) {
       el.body.dataset.sound = state;
       const b = $("btnSound");
       b.textContent = state === "ready" ? "🔔" : "🔇";
-      b.title = state === "ready" ? "声音已开启 · sound on"
-                                  : "点一下开启声音（手机必须点一次）· tap once to enable sound";
+      b.title = state === "ready" ? L("soundOn") : L("soundTap");
     }
   }
   async function ensureAudio() {
@@ -597,6 +731,14 @@
       cursor += S.prep.secs;
     }
     S.segments.forEach((sg, i) => {
+      // Per-section countdown: a section can ask for its own 3-2-1 before it
+      // starts, not just the first one. It is the same prep item kind, so the
+      // voice, the blip and the red→amber→green wash all work unchanged.
+      const cd = Math.max(0, Math.min(MAX_CD, Math.round(Number(sg.cd) || 0)));
+      if (cd > 0) {
+        timeline.push({ kind:"prep", start:cursor, dur:cd, title:"准备", sub:"GET READY", color:"indigo" });
+        cursor += cd;
+      }
       const dur = durSecs(sg);
       timeline.push({ kind:"seg", idx:i, start:cursor, dur, title:sg.t || ("分段 " + (i+1)),
                       sub:sg.s || "", color:sg.color || "blue" });
@@ -639,13 +781,25 @@
     s = Math.max(0, s);
     return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(Math.floor(s%60)).padStart(2,"0");
   };
-  // Session clock = the timed sections only. The 3-2-1 prep is a countdown, not
-  // speaking time, so it is excluded; otherwise "5 min in" would read 5:03.
+  // Session clock = the timed sections only. Every prep countdown — the global
+  // one and the per-section ones — is excluded; otherwise "5 min in" would read
+  // 5:03. sessionElapsed() maps wall-clock time onto speaking time by summing
+  // only the parts of the run that fall inside a section.
   const sessionStart = () => {
     const first = timeline.find(it => it.kind === "seg");
     return first ? first.start : 0;
   };
-  const sessionDur = () => Math.max(0, totalSecs - sessionStart());
+  const sessionDur = () =>
+    timeline.filter(it => it.kind === "seg").reduce((a, it) => a + it.dur, 0);
+  const sessionElapsed = (e) => {
+    let acc = 0;
+    for (const it of timeline) {
+      if (it.kind !== "seg") continue;
+      if (e <= it.start) break;
+      acc += Math.min(it.dur, e - it.start);
+    }
+    return acc;
+  };
   const currentItem = (e) => timeline.find(it => e < it.start + it.dur) || timeline[timeline.length - 1] || null;
   const elapsedNow = () => running ? (performance.now() - startedAt) / 1000 : pausedElapsed;
 
@@ -657,7 +811,7 @@
     const light = effTheme() === "light";
     const base = light ? [242,242,247] : [0,0,0];
 
-    // Countdown lights: red → orange → green as the count falls. Thresholds are
+    // Countdown lights: red → amber → green as the count falls. Thresholds are
     // fractions of the whole prep, not the literal 3/2/1 keys — a 5s prep used
     // to sit on red until the last two seconds when it was hard-coded.
     let colourKey = item.color;
@@ -669,12 +823,27 @@
     const col = hx(palette()[colourKey] || "#000000");
     const mode = S.backdrop;
 
+    /* Breathing wash: the section's own colour stays, only its strength moves.
+       A section is flat for 15 minutes otherwise, and the room loses the sense
+       that time is passing; ramping the alpha gives that back without changing
+       what the colour MEANS (green still means "on track" at any brightness).
+       Quantised to 1/20 steps because render() runs at 10 Hz — repainting an
+       identical alpha 10 times a second is pure churn. */
+    let breath = 1;
+    if (S.wash === "breathe" && item.kind === "seg" && mode !== "off") {
+      const p = Math.max(0, Math.min(1, (elapsedNow() - item.start) / Math.max(1, item.dur)));
+      const s = p * p * (3 - 2 * p);                 // smoothstep: no jolt at either end
+      // solid fills the screen, so it gets a narrower range or it reads as flicker
+      const lo = mode === "solid" ? 0.82 : 0.5;
+      breath = Math.round((lo + (1 - lo) * s) * 20) / 20;
+    }
+
     let field = base, fg = light ? "#000" : "#FFF";
     if (mode === "solid") {
-      field = mix(base, col, light ? MIX.solidLight : MIX.solidDark);
+      field = mix(base, col, breath * (light ? MIX.solidLight : MIX.solidDark));
       fg = lum(field) > 0.45 ? "#000000" : "#FFFFFF";
     } else if (mode === "soft") {
-      field = mix(base, col, light ? MIX.softLight : MIX.softDark);
+      field = mix(base, col, breath * (light ? MIX.softLight : MIX.softDark));
     }
     const key = field.join(",") + "|" + fg + "|" + mode + "|" + colourKey;
     if (!force && key === lastField) return;
@@ -740,13 +909,16 @@
       const sStart = sessionStart(), sDur = sessionDur();
       for (const b of bells) {
         if (b.at < sStart) continue;                       // prep bells have no place here
-        const rel = sDur > 0 ? (b.at - sStart) / sDur : 0;
+        // a bell's position is its SPEAKING time, not its wall-clock time, so a
+        // per-section countdown must not shift every mark after it off the axis
+        const at = sessionElapsed(b.at);
+        const rel = sDur > 0 ? at / sDur : 0;
         const m = document.createElement("i");
         m.className = "mark";
         m.dataset.rings = b.rings;
         m.dataset.hit = b.fired ? "1" : "0";
         m.style.left = (Math.min(1, Math.max(0, rel)) * 100).toFixed(3) + "%";
-        const stamp = mmss(b.at - sStart);      // 10:00 for an end bell, 9:30 for before-30s
+        const stamp = mmss(at);      // 10:00 for an end bell, 9:30 for before-30s
         m.title = stamp + " ×" + b.rings;
         m.dataset.place = rel.toFixed(4);
         box.appendChild(m);
@@ -763,7 +935,7 @@
         m.dataset.rings = b.rings;
         m.dataset.hit = b.fired ? "1" : "0";
         m.style.left = (rel * 100).toFixed(3) + "%";
-        const stamp = mmss(b.at - sessionStart());
+        const stamp = mmss(sessionElapsed(b.at));
         m.title = stamp + " ×" + b.rings;
         m.dataset.place = rel.toFixed(4);
         box.appendChild(m);
@@ -794,7 +966,9 @@
     const isPrep = item.kind === "prep";
     const session = S.display === "session";
     const sStart = sessionStart(), sDur = sessionDur();
-    const shown = session ? Math.max(0, sStart + sDur - e) : remaining;
+    // speaking time, not wall-clock: per-section countdowns sit inside the run
+    const sEl = sessionElapsed(e);
+    const shown = session ? Math.max(0, sDur - sEl) : remaining;
 
     // In session display the prep is not part of the session, so before the
     // run starts the honest number is the session total, not "3".
@@ -807,18 +981,23 @@
     // In session mode the caption says which clock you are reading, because a
     // big number that is neither the section nor the total is a real hazard.
     el.caption.textContent = session && !isPrep
-      ? "全场剩余 · SESSION REMAINING"
-      : (session && isPrep ? "准备 · GET READY" : "");
+      ? L("session")
+      : (session && isPrep ? L("ready") : "");
 
-    el.zh.textContent = item.title;
-    el.en.textContent = item.sub || "";
+    // ONE language on the projector. Each section already stores both names, so
+    // the language switch picks one instead of inventing a translation; a
+    // section with only a Chinese name keeps it rather than showing nothing.
+    el.zh.textContent = S.uiLang === "en"
+      ? (item.sub || item.title || "GET READY")
+      : (item.title || item.sub || "准备");
+    el.en.textContent = "";
 
     // PROGRESS, not remaining. The bar fills left -> right as the run is consumed,
     // so its leading edge sits on the same axis as the bell marks (both are
     // elapsed/dur). Driving it from `remaining` drained it right -> left and put
     // the edge at 1-progress, where it could never line up with a mark.
     el.fill.style.width = session
-      ? (sDur > 0 ? Math.max(0, Math.min(1, (e - sStart) / sDur)) * 100 : 0).toFixed(2) + "%"
+      ? (sDur > 0 ? Math.max(0, Math.min(1, sEl / sDur)) * 100 : 0).toFixed(2) + "%"
       : (item.dur > 0 ? Math.max(0, Math.min(1, (e - item.start) / item.dur)) * 100 : 0).toFixed(2) + "%";
 
     const i = timeline.indexOf(item);
@@ -831,11 +1010,12 @@
       el.next.textContent = "";
       el.step.textContent = "";
     } else {
-      el.next.textContent = nxt
-        ? "接下来 NEXT · " + nxt.title + " " + mmss(nxt.dur)
-        : "";
+      const nxtName = nxt ? (S.uiLang === "en" ? (nxt.sub || nxt.title) : nxt.title) : "";
+      el.next.textContent = nxt ? L("next") + " · " + nxtName + " " + mmss(nxt.dur) : "";
       el.step.textContent = item.kind === "seg"
-        ? "第 " + (item.idx + 1) + " / " + S.segments.length + " 段 · SECTION " + (item.idx + 1) + " OF " + S.segments.length
+        ? (S.uiLang === "en"
+            ? L("section") + " " + (item.idx + 1) + " " + L("of") + " " + S.segments.length
+            : "第 " + (item.idx + 1) + " / " + S.segments.length + " " + L("section"))
         : "";
     }
 
@@ -845,7 +1025,7 @@
 
   /* ---------- transport ---------- */
   const setBtn = (m) => {
-    $("btnStart").textContent = m === "running" ? "暂停 PAUSE" : m === "done" ? "再来一次 AGAIN" : "开始 START";
+    $("btnStart").textContent = m === "running" ? L("pause") : m === "done" ? L("again") : L("start");
   };
   const startLoop = () => { if (!timerId) timerId = setInterval(tick, 100); };
   const stopLoop  = () => { clearInterval(timerId); timerId = null; };
@@ -889,10 +1069,10 @@
     lastMarkKey = "";
     running = false; stopLoop();
     el.body.dataset.state = "done";
-    el.zh.textContent = "结束"; el.en.textContent = "TIME";
+    el.zh.textContent = L("doneZh"); el.en.textContent = "";
     el.clock.textContent = "00:00";
     el.fill.style.width = "100%";      // the run is fully consumed on the progress axis
-    el.next.textContent = "请下一位选手准备 · Next speaker, please";
+    el.next.textContent = L("nextSpeaker");
     el.step.textContent = "";
     const light = effTheme() === "light";
     const rgb = light ? "rgb(214,214,214)" : "rgb(38,38,40)";
@@ -922,7 +1102,9 @@
     const item = currentItem(e);
     if (item && item.kind === "prep") {
       const n = Math.max(1, Math.ceil(item.start + item.dur - e));
-      if (n !== lastBlip && n <= S.prep.secs) {
+      // gate on THIS item's own length: a section's 5s countdown must not be
+      // silenced by the global 3s setting, or vice versa
+      if (n !== lastBlip && n <= item.dur) {
         lastBlip = n;
         // the voice replaces the blip rather than doubling it — two cues at once
         // reads as a glitch, not as emphasis
@@ -961,13 +1143,14 @@
       card.innerHTML =
         `<div class="segTop">
            <span class="segNo">${i + 1}</span>
-           <input class="segTitle" data-i="${i}" data-f="t" value="${esc(sg.t)}" placeholder="标题 Title 标题">
-           <button class="del" data-del="${i}" title="删除 Delete">✕</button>
+           <input class="segTitle" data-i="${i}" data-f="t" value="${esc(sg.t)}" placeholder="${L("titlePhZh")}">
+           <input class="segSub" data-i="${i}" data-f="s" value="${esc(sg.s || "")}" placeholder="${L("titlePhEn")}">
+           <button class="del" data-del="${i}" title="${L("deleteTitle")}">✕</button>
          </div>
          <div class="segTop" data-row="opts"${sg._warn ? ' style="outline:1px solid rgba(255,159,10,.55);outline-offset:2px;border-radius:8px"' : ""}>
-           <input type="number" data-i="${i}" data-f="min" min="0" max="180" step="1" value="${sg.min}" title="分钟 minutes">
+           <input type="number" data-i="${i}" data-f="min" min="0" max="180" step="1" value="${sg.min}" title="${L("minTitle")}">
            <span style="font-size:12px;color:var(--dim)">min</span>
-           <input type="number" data-i="${i}" data-f="sec" min="0" max="59" step="1" value="${sg.sec || 0}" title="秒 seconds">
+           <input type="number" data-i="${i}" data-f="sec" min="0" max="59" step="1" value="${sg.sec || 0}" title="${L("secsTitle")}">
            <span style="font-size:12px;color:var(--dim)">s</span>
            <span class="swatchRow">${COLOURS.map(c =>
              `<i class="dot${sg.color === c ? " on" : ""}" data-color="${c}" data-i="${i}"
@@ -976,21 +1159,28 @@
          <div class="bellRows">
            ${sg.bells.map((b, bi) => `
              <div class="bellRow">
-               <select data-i="${i}" data-b="${bi}" data-f="mode" title="铃声时机 bell timing">
-                 <option value="end">结束时 end</option>
-                 <option value="before">结束前 before</option>
-                 <option value="after">开始后 after</option>
+               <select data-i="${i}" data-b="${bi}" data-f="mode" title="${L("bellWhen")}">
+                 <option value="end">${L("bellAtEnd")}</option>
+                 <option value="before">${L("bellBefore")}</option>
+                 <option value="after">${L("bellAfter")}</option>
                </select>
                <input type="number" data-i="${i}" data-b="${bi}" data-f="secs" min="0" max="3600" step="1"
                       value="${b.secs}" title="秒 seconds">
                <span style="font-size:12px;color:var(--dim)">s</span>
                <select data-i="${i}" data-b="${bi}" data-f="rings" title="响几下 rings">
                  ${[1,2,3,4,5,6].map(n =>
-                   `<option value="${n}">${"叮".repeat(Math.min(n, 3))} ×${n}</option>`).join("")}
+                   `<option value="${n}">${(S.uiLang === "en" ? "ding ".repeat(Math.min(n, 3)).trim() : "叮".repeat(Math.min(n, 3)))} ×${n}</option>`).join("")}
                </select>
-               <button class="delBell" data-deli="${i}" data-delb="${bi}" title="删除此铃 remove bell">−</button>
+               <button class="delBell" data-deli="${i}" data-delb="${bi}" title="${L("removeBell")}">−</button>
              </div>`).join("")}
-           <button class="addBell" data-addbell="${i}">＋ 加铃 · add bell</button>
+           <button class="addBell" data-addbell="${i}">${L("addBell")}</button>
+           <div class="cdRow" title="${L("cdTitle")}">
+             <span class="cdThumb">⏱</span>
+             <span class="cdLab">${L("cdLabel")}</span>
+             <input type="number" data-i="${i}" data-f="cd" min="0" max="${MAX_CD}" step="1"
+                    value="${Number(sg.cd) || 0}" class="${Number(sg.cd) ? "hasCd" : ""}">
+             <span class="cdUnit">s</span>
+           </div>
          </div>`;
       list.appendChild(card);
 
@@ -1006,7 +1196,7 @@
       });
     });
     const tot = S.segments.reduce((a, sg) => a + durSecs(sg), 0);
-    $("totalTime").textContent = mmss(tot) + " 总计";
+    $("totalTime").textContent = mmss(tot) + " " + L("total");
     refreshWarnings();
   }
 
@@ -1015,8 +1205,13 @@
     if (!f || Number.isNaN(i) || !S.segments[i]) return;
     const sg = S.segments[i];
     if (f === "t") sg.t = t.value;
+    else if (f === "s") sg.s = t.value;
     else if (f === "min") sg.min = Math.max(0, Math.min(180, Math.round(parseFloat(t.value) || 0)));
     else if (f === "sec") sg.sec = Math.max(0, Math.min(59, Math.round(parseFloat(t.value) || 0)));
+    else if (f === "cd") {
+      sg.cd = Math.max(0, Math.min(MAX_CD, Math.round(parseFloat(t.value) || 0)));
+      t.classList.toggle("hasCd", sg.cd > 0);
+    }
     else if (!Number.isNaN(bi) && sg.bells[bi]) {
       const b = sg.bells[bi];
       if (f === "mode")  { b.mode = t.value; renderSegList(); }
@@ -1027,7 +1222,7 @@
     // refresh the 总计 readout in place — re-rendering the whole list on every
     // keystroke would steal focus out of the input being typed into
     const tot = S.segments.reduce((a, s) => a + durSecs(s), 0);
-    $("totalTime").textContent = mmss(tot) + " 总计";
+    $("totalTime").textContent = mmss(tot) + " " + L("total");
     refreshWarnings();
     if (!running) render();
   });
@@ -1042,7 +1237,7 @@
       const tip = document.createElement("div");
       tip.className = "voiceTip";
       tip.style.cssText = "font-size:11px;color:#FF9F0A;padding:0 0 6px 4px";
-      tip.textContent = "此浏览器不支持语音 · this browser has no speech voice";
+      tip.textContent = L("noVoice");
       row.after(tip);
     }
   }
@@ -1062,9 +1257,7 @@
       }
       if (tip) {
         if (!sg._warn) tip.remove();
-        else tip.textContent = sg._warn === "late"
-          ? "铃声超出总时长，不会响 · bell is past the end, it will not ring"
-          : "铃声落在开始之前，已提前到 0 秒 · bell is before the start, moved to 0 s";
+        else tip.textContent = sg._warn === "late" ? L("bellLate") : L("bellEarly");
       }
     });
   }
@@ -1109,8 +1302,8 @@
 
   $("btnAddSeg").addEventListener("click", () => {
     const last = S.segments[S.segments.length - 1] || { color:"blue" };
-    S.segments.push({ t:"新分段 " + (S.segments.length + 1), s:"", min:5, sec:0,
-                      color: last.color, bells:[ newBell() ] });
+    S.segments.push({ t:L("newSeg") + " " + (S.segments.length + 1), s:"", min:5, sec:0,
+                      color: last.color, cd:0, bells:[ newBell() ] });
     save(); buildTimeline(); renderSegList();
     const card = $("segList").lastElementChild;
     if (card) { card.scrollIntoView({ block:"nearest" }); card.querySelector(".segTitle").focus(); }
@@ -1137,6 +1330,13 @@
   document.querySelectorAll("#segDisplay button").forEach(b => b.addEventListener("click", () => {
     S.display = b.dataset.display; save(); syncControls(); lastMarkKey = ""; render();
   }));
+  document.querySelectorAll("#segWash button").forEach(b => b.addEventListener("click", () => {
+    S.wash = b.dataset.wash; save(); syncControls(); lastField = ""; paintField(true); render();
+  }));
+  document.querySelectorAll("#segLang button").forEach(b => b.addEventListener("click", () => {
+    S.uiLang = b.dataset.uiLang === "en" ? "en" : "zh";
+    save(); applyUiLang(); renderSegList(); lastMarkKey = ""; render();
+  }));
 
   function syncControls() {
     $("swPrep").checked = !!S.prep.on;
@@ -1152,6 +1352,8 @@
     document.querySelectorAll("#segTheme button").forEach(b => b.classList.toggle("on", b.dataset.theme === S.theme));
     document.querySelectorAll("#segBackdrop button").forEach(b => b.classList.toggle("on", b.dataset.bg === S.backdrop));
     document.querySelectorAll("#segDisplay button").forEach(b => b.classList.toggle("on", b.dataset.display === S.display));
+    document.querySelectorAll("#segWash button").forEach(b => b.classList.toggle("on", b.dataset.wash === (S.wash || "flat")));
+    document.querySelectorAll("#segLang button").forEach(b => b.classList.toggle("on", b.dataset.uiLang === (S.uiLang || "zh")));
     el.body.dataset.display = S.display;      // drives the caption's visibility
   }
 
@@ -1232,6 +1434,8 @@
     setTheme:    (t) => { S.theme = t; save(); applyTheme(); },
     setVolume:   (v) => { S.volume = Math.max(0, Math.min(1, v)); save(); syncControls(); ensureAudio(); applyVolume(); },
     setBackdrop: (m) => { S.backdrop = m; save(); syncControls(); paintField(true); render(); },
+    setWash:     (m) => { S.wash = m; save(); syncControls(); lastField = ""; paintField(true); render(); },
+    setUiLang:   (l) => { S.uiLang = l === "en" ? "en" : "zh"; save(); applyUiLang(); syncControls(); renderSegList(); lastMarkKey = ""; render(); },
     setDisplay:  (m) => { S.display = m; save(); syncControls(); lastMarkKey = ""; render(); },
     setMarks:    (on) => { S.marks = !!on; save(); syncControls(); lastMarkKey = ""; render(); },
     setVoice:    (on, lang) => {
@@ -1264,6 +1468,7 @@
 
   syncControls();
   applyTheme();
+  applyUiLang();
   renderSegList();
   buildTimeline();
   reset();
