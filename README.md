@@ -79,7 +79,8 @@ Click **⚙︎** (bottom right) or press `S`. Everything is saved in the browser
 | Section · 分区 | What you can change · 可调项 |
 |---|---|
 | 外观 Appearance | Theme 主题 — 自动跟随系统 / 浅色 / 深色 |
-| 计时 Timing | 3-2-1 on/off · 主环节分钟 · 加时分钟 · last-30s tick 最后30秒滴答 |
+| 计时 Timing | 准备倒数 1–10 秒 · 主环节分钟 · 加时分钟 · last-30s tick 最后30秒滴答 |
+| 语音 Voice | 语音倒数 on/off · English / 中文 — speaks **every** number of the countdown (5 → "five, four, three, two, one") · 每个数字都念出来 |
 | 声音 Sound | **Volume 音量 slider 0–100** + test buttons 试听：叮 / 叮叮 / 哔 |
 | 阶段颜色 Phase colours | 5 colour pickers + 恢复 Apple 标准配色 Restore Apple palette |
 

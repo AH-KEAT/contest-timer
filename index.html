@@ -234,7 +234,7 @@
         <label class="sw"><input id="swLights" type="checkbox" checked><i></i></label>
       </div>
       <div class="row">
-        <div class="lbl"><b>语音倒数</b><em>Say "three two one" · 念出「三、二、一」</em></div>
+        <div class="lbl"><b>语音倒数</b><em>Say every number · 念出每个数字</em></div>
         <label class="sw"><input id="swVoice" type="checkbox"><i></i></label>
       </div>
       <div class="row">
@@ -510,13 +510,34 @@
   }
   const ring = (times) => { for (let i = 0; i < times; i++) bell(i * 0.46, 760, 2.4); };
 
-  /* Spoken "three two one" for the prep countdown.
+  /* Spoken numbers for the prep countdown.
      SpeechSynthesis is a separate browser facility from Web Audio: it is not
      affected by the AudioContext gesture rules, but iOS still requires one
      earlier gesture, and voice availability varies by platform, so this must
      degrade silently when there is no voice. */
-  const VOICE_WORDS = { 3:"three", 2:"two", 1:"one" };
-  const VOICE_WORDS_ZH = { 3:"三", 2:"二", 1:"一" };
+  // Any countdown length must be spoken, not just three-two-one: a fixed
+  // {3,2,1} lookup left the first seconds of a 5s prep silent. Numbers are
+  // generated instead, so the map is gone and nothing can fall out of it.
+  const NUM_WORDS_EN = ["zero","one","two","three","four","five","six","seven","eight",
+    "nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen",
+    "seventeen","eighteen","nineteen"];
+  const TENS_EN = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+  const DIGITS_ZH = ["零","一","二","三","四","五","六","七","八","九"];
+
+  function numberWord(n, lang) {
+    n = Math.floor(Number(n));
+    if (!isFinite(n) || n < 0) return "";
+    if (n < 20) return lang === "zh" ? (n < 10 ? DIGITS_ZH[n] : "十" + (n > 10 ? DIGITS_ZH[n - 10] : "")) : NUM_WORDS_EN[n];
+    if (n < 100) {
+      const t = Math.floor(n / 10), d = n % 10;
+      if (lang === "zh") {
+        // 20 → 二十, 25 → 二十五, 10 → 十
+        return (t === 1 ? "" : DIGITS_ZH[t]) + "十" + (d ? DIGITS_ZH[d] : "");
+      }
+      return TENS_EN[t] + (d ? "-" + NUM_WORDS_EN[d] : "");
+    }
+    return String(n);   // past 99 just say the digits
+  }
   let voiceOk = null;
 
   function voiceSupport() {
@@ -553,7 +574,8 @@
     } catch (e) { return false; }
   }
   async function sayNumber(n) {
-    const word = S.prep.voiceLang === "zh" ? VOICE_WORDS_ZH[n] : VOICE_WORDS[n];
+    // Generated, not looked up: any prep length must be spoken (5 → "five").
+    const word = numberWord(n, S.prep.voiceLang === "zh" ? "zh" : "en");
     if (!word) return;
     // if a previous number is still speaking, cancel so they do not queue up
     if (voiceSupport()) { try { window.speechSynthesis.cancel(); } catch (e) {} }
@@ -635,11 +657,14 @@
     const light = effTheme() === "light";
     const base = light ? [242,242,247] : [0,0,0];
 
-    // 3-2-1 lights: red → orange → green as the count falls
+    // Countdown lights: red → orange → green as the count falls. Thresholds are
+    // fractions of the whole prep, not the literal 3/2/1 keys — a 5s prep used
+    // to sit on red until the last two seconds when it was hard-coded.
     let colourKey = item.color;
     if (item.kind === "prep" && S.prep.lights) {
       const n = prepCount == null ? item.dur : prepCount;
-      colourKey = n >= 3 ? "red" : n === 2 ? "orange" : "green";
+      const span = Math.max(1, item.dur);
+      colourKey = n <= 1 ? "green" : n <= Math.max(2, Math.ceil(span / 3)) ? "orange" : "red";
     }
     const col = hx(palette()[colourKey] || "#000000");
     const mode = S.backdrop;
